@@ -1,0 +1,12 @@
+{
+  "name": "VozDroid AI - Control por Voz Offline para Android",
+  "description": "Asistente inteligente con control total por voz para teléfonos Android y motor de IA local que funciona 100% sin conexión a internet.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
