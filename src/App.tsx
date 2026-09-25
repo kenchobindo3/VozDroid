@@ -274,12 +274,10 @@ export default function App() {
           }));
         }
 
-        // Check if permissions onboarding has been completed
-        const hasPromptedPermissions = localStorage.getItem('vozdroid_permissions_requested_v1');
-        if (!hasPromptedPermissions) {
-          setIsFirstLaunch(true);
-          setIsPermissionsModalOpen(true);
-        }
+        // Permissions status check (do not block UI with modal)
+        localStorage.setItem('vozdroid_permissions_requested_v1', 'true');
+        setIsFirstLaunch(false);
+        setIsPermissionsModalOpen(false);
       } catch (err) {
         console.error('Initialization error:', err);
       }

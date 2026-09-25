@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Device } from '@capacitor/device';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { nativeAndroidBridge } from './nativeAndroidBridge';
 
 class HardwareService {
   private torchStream: MediaStream | null = null;
@@ -38,6 +39,23 @@ class HardwareService {
 
   // --- 1. TORCH / FLASHLIGHT (Real Android Camera Flash) ---
   public async setTorch(enable: boolean): Promise<{ success: boolean; realHardware: boolean; message: string }> {
+    // 1. Try Native Android CameraManager if running on device
+    if (nativeAndroidBridge.isNative()) {
+      try {
+        const ok = await nativeAndroidBridge.setTorch(enable);
+        if (ok) {
+          this.playBeep(enable ? 880 : 440, 0.1);
+          return {
+            success: true,
+            realHardware: true,
+            message: enable ? 'Linterna encendida (Hardware Android CameraManager)' : 'Linterna apagada (Hardware Android)',
+          };
+        }
+      } catch (err) {
+        console.warn('Native torch failed, falling back to WebRTC:', err);
+      }
+    }
+
     try {
       if (enable) {
         // Clean up any stale streams first
