@@ -1,5 +1,43 @@
 @import "tailwindcss";
 
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+/* 100% Android Native Touch & Feel */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overscroll-behavior: none;
+  -webkit-overscroll-behavior: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  background-color: #030712;
+  color: #f8fafc;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Allow text selection only inside editable input fields */
+input, textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Remove default mobile focus rings */
+button, a, input, select, textarea {
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 @layer utilities {
   @keyframes spinSlow {
     from {
@@ -13,24 +51,32 @@
   .animate-spin-slow {
     animation: spinSlow 8s linear infinite;
   }
+
+  /* Android native hide scrollbars utility */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
-/* Custom sleek scrollbar for mobile and desktop */
+/* Sleek native Android scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
-  border-radius: 9999px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(51, 65, 85, 0.8);
+  background: rgba(100, 116, 139, 0.4);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(6, 182, 212, 0.5);
+  background: rgba(6, 182, 212, 0.6);
 }

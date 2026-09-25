@@ -389,22 +389,44 @@ class HardwareService {
   }
 
   // --- 8. ANDROID INTENT / DEEP LINK ACTIONS ---
-  public triggerCall(phone: string): void {
+  public async setVolume(percent: number): Promise<boolean> {
+    if (nativeAndroidBridge.isNative()) {
+      return await nativeAndroidBridge.setVolume(percent);
+    }
+    this.playBeep(400 + (percent * 4), 0.1);
+    return true;
+  }
+
+  public async triggerCall(phone: string): Promise<void> {
     const cleanPhone = phone.replace(/[^\d+]/g, '');
+    if (nativeAndroidBridge.isNative()) {
+      const handled = await nativeAndroidBridge.makeCall(cleanPhone);
+      if (handled) return;
+    }
     window.location.href = `tel:${cleanPhone}`;
   }
 
-  public triggerSms(phone: string, body?: string): void {
+  public async triggerSms(phone: string, body?: string): Promise<void> {
     const cleanPhone = phone.replace(/[^\d+]/g, '');
-    const encodedBody = body ? encodeURIComponent(body) : '';
-    window.location.href = `sms:${cleanPhone}${body ? `?body=${encodedBody}` : ''}`;
+    const message = body || '';
+    if (nativeAndroidBridge.isNative()) {
+      const handled = await nativeAndroidBridge.sendSms(cleanPhone, message);
+      if (handled) return;
+    }
+    const encodedBody = message ? encodeURIComponent(message) : '';
+    window.location.href = `sms:${cleanPhone}${message ? `?body=${encodedBody}` : ''}`;
   }
 
-  public triggerWhatsApp(phone?: string, text?: string): void {
+  public async triggerWhatsApp(phone?: string, text?: string): Promise<void> {
     const cleanPhone = phone ? phone.replace(/[^\d]/g, '') : '';
-    const encoded = text ? encodeURIComponent(text) : '';
+    const message = text || '';
+    if (nativeAndroidBridge.isNative() && cleanPhone) {
+      const handled = await nativeAndroidBridge.openWhatsApp(cleanPhone, message);
+      if (handled) return;
+    }
+    const encoded = message ? encodeURIComponent(message) : '';
     if (cleanPhone) {
-      window.open(`https://wa.me/${cleanPhone}${text ? `?text=${encoded}` : ''}`, '_blank');
+      window.open(`https://wa.me/${cleanPhone}${message ? `?text=${encoded}` : ''}`, '_blank');
     } else {
       window.open(`whatsapp://send?text=${encoded}`, '_blank');
     }
@@ -416,7 +438,11 @@ class HardwareService {
     window.open(`geo:0,0?q=${encoded}`, '_system') || window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank');
   }
 
-  public triggerCamera(): void {
+  public async triggerCamera(): Promise<void> {
+    if (nativeAndroidBridge.isNative()) {
+      const handled = await nativeAndroidBridge.openCamera();
+      if (handled) return;
+    }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';

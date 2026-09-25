@@ -416,7 +416,7 @@ export default function App() {
           case 'SET_VOLUME': {
             const newVol = act.params?.volume ?? 50;
             setSystemState((prev) => ({ ...prev, volume: newVol }));
-            hardwareService.playBeep(600, 0.1);
+            hardwareService.setVolume(newVol);
             act.status = 'success';
             act.resultMessage = `Volumen de Android fijado al ${newVol}%`;
             break;
