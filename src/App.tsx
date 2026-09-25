@@ -198,6 +198,7 @@ export default function App() {
   useEffect(() => {
     const initData = async () => {
       try {
+        await hardwareService.initNativeFeatures();
         const savedMsgs = await getAllMessages();
         setMessages(savedMsgs);
 

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1d" />
+      <stop offset="50%" stop-color="#0d1b2a" />
+      <stop offset="100%" stop-color="#1b263b" />
+    </linearGradient>
+    <linearGradient id="neonCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+    <linearGradient id="neonEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded rect -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" />
+  <rect width="510" height="510" x="1" y="1" rx="109" fill="none" stroke="url(#neonCyan)" stroke-width="4" stroke-opacity="0.3" />
+
+  <!-- Outer Soundwaves circle -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#06b6d4" stroke-width="2" stroke-dasharray="8 8" opacity="0.4" />
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#10b981" stroke-width="1.5" stroke-dasharray="14 14" opacity="0.3" />
+
+  <!-- Central Core Glow -->
+  <circle cx="256" cy="256" r="120" fill="url(#neonCyan)" opacity="0.15" filter="url(#glow)" />
+  <circle cx="256" cy="256" r="85" fill="#0f172a" stroke="url(#neonEmerald)" stroke-width="6" />
+
+  <!-- Android Antennas / Robot Ears -->
+  <line x1="200" y1="160" x2="175" y2="120" stroke="#10b981" stroke-width="8" stroke-linecap="round" />
+  <line x1="312" y1="160" x2="337" y2="120" stroke="#10b981" stroke-width="8" stroke-linecap="round" />
+  <circle cx="172" cy="115" r="7" fill="#10b981" />
+  <circle cx="340" cy="115" r="7" fill="#10b981" />
+
+  <!-- Dynamic Equalizer Bars inside Core -->
+  <rect x="210" y="235" width="8" height="42" rx="4" fill="#06b6d4" />
+  <rect x="230" y="215" width="8" height="82" rx="4" fill="#10b981" />
+  <rect x="252" y="195" width="8" height="122" rx="4" fill="#38bdf8" />
+  <rect x="274" y="215" width="8" height="82" rx="4" fill="#10b981" />
+  <rect x="294" y="235" width="8" height="42" rx="4" fill="#06b6d4" />
+
+  <!-- Microphone Icon Badge at bottom right of center -->
+  <circle cx="345" cy="345" r="42" fill="#0284c7" stroke="#38bdf8" stroke-width="3" filter="url(#glow)" />
+  <path d="M345 325 C339.5 325 335 329.5 335 335 L335 348 C335 353.5 339.5 358 345 358 C350.5 358 355 353.5 355 348 L355 335 C355 329.5 350.5 325 345 325 Z" fill="#ffffff" />
+  <path d="M330 344 C330 353 336.5 361 345 361 C353.5 361 360 344 360 344" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
+  <line x1="345" y1="361" x2="345" y2="368" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
+  <line x1="337" y1="368" x2="353" y2="368" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
+</svg>

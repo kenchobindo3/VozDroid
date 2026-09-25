@@ -1,9 +1,28 @@
 // Real Hardware & Android Integration Service (100% Offline Compatible)
+import { Capacitor } from '@capacitor/core';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { Device } from '@capacitor/device';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 class HardwareService {
   private torchStream: MediaStream | null = null;
   private wakeLockSentinel: any = null;
   private audioCtx: AudioContext | null = null;
+
+  public isNativeApp(): boolean {
+    return Capacitor.isNativePlatform();
+  }
+
+  public async initNativeFeatures(): Promise<void> {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await StatusBar.setStyle({ style: Style.Dark });
+        await StatusBar.setBackgroundColor({ color: '#0a0f1d' });
+      } catch (err) {
+        console.warn('Native status bar initialization warning:', err);
+      }
+    }
+  }
 
   // Initialize Web Audio context on user interaction
   private getAudioContext(): AudioContext {
@@ -117,6 +136,16 @@ class HardwareService {
 
   // --- 2. VIBRATION (Haptic Feedback) ---
   public vibrate(pattern: number | number[] = [100, 50, 100]): boolean {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const duration = Array.isArray(pattern) ? (pattern[0] || 200) : pattern;
+        Haptics.vibrate({ duration: Math.min(Math.max(duration, 50), 1000) });
+        return true;
+      } catch (err) {
+        console.warn('Native Haptics failed, falling back to Web:', err);
+      }
+    }
+
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         return navigator.vibrate(pattern);
@@ -160,6 +189,22 @@ class HardwareService {
 
   // --- 4. BATTERY API ---
   public async getBatteryInfo(): Promise<{ level: number; charging: boolean; chargingTime: number; dischargingTime: number } | null> {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const info = await Device.getBatteryInfo();
+        if (info && typeof info.batteryLevel === 'number') {
+          return {
+            level: Math.round(info.batteryLevel * 100),
+            charging: !!info.isCharging,
+            chargingTime: 0,
+            dischargingTime: 0,
+          };
+        }
+      } catch (err) {
+        console.warn('Native Device.getBatteryInfo failed, falling back to Web API:', err);
+      }
+    }
+
     if (typeof navigator !== 'undefined' && 'getBattery' in navigator) {
       try {
         const battery = await (navigator as any).getBattery();
