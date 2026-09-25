@@ -294,8 +294,10 @@ public class ZannaNativePlugin extends Plugin {
     @PluginMethod
     public void speakNative(PluginCall call) {
         String text = call.getString("text", "");
-        float pitch = (float) call.getDouble("pitch", 1.0);
-        float rate = (float) call.getDouble("rate", 1.0);
+        Double pVal = call.getDouble("pitch");
+        float pitch = pVal != null ? pVal.floatValue() : 1.0f;
+        Double rVal = call.getDouble("rate");
+        float rate = rVal != null ? rVal.floatValue() : 1.0f;
 
         if (text.isEmpty()) {
             call.reject("Text cannot be empty");
@@ -452,17 +454,5 @@ public class ZannaNativePlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("success", true);
         call.resolve(ret);
-    }
-
-    @Override
-    protected void handleOnDestroy() {
-        if (textToSpeech != null) {
-            textToSpeech.stop();
-            textToSpeech.shutdown();
-        }
-        if (speechRecognizer != null) {
-            speechRecognizer.destroy();
-        }
-        super.handleOnDestroy();
     }
 }
