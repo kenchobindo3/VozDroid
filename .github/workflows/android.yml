@@ -16,14 +16,11 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Node.js 20
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
-
-    - name: Install dependencies
-      run: npm install --legacy-peer-deps
+    - name: Install Node dependencies
+      run: |
+        echo "Node version: $(node -v)"
+        echo "NPM version: $(npm -v)"
+        npm install --legacy-peer-deps
 
     - name: Build Web Application Bundle
       run: npm run build
@@ -36,10 +33,11 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
     - name: Grant execute permission for gradlew
-      run: chmod +x android/gradlew gradlew
+      run: |
+        chmod +x android/gradlew || true
+        chmod +x gradlew || true
 
     - name: Build Debug APK with Gradle
       working-directory: android
