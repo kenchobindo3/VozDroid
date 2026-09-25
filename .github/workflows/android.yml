@@ -16,10 +16,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Node.js 20
+    - name: Set up Node.js 22 (Required by Capacitor 8 CLI)
       uses: actions/setup-node@v4
       with:
-        node-version: 20
+        node-version: 22
 
     - name: Install dependencies
       run: npm install --legacy-peer-deps
@@ -35,10 +35,11 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
     - name: Grant execute permission for gradlew
-      run: chmod +x android/gradlew gradlew
+      run: |
+        chmod +x android/gradlew || true
+        chmod +x gradlew || true
 
     - name: Build Debug APK with Gradle
       working-directory: android
