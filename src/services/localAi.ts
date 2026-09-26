@@ -746,20 +746,21 @@ class LocalAiService {
             reasoningSteps: [`[Recordatorio Instantáneo] ${cleanTask} agendado para ${timeStr}`],
           };
         } else {
-          // Hour specified without AM/PM -> Ask morning or afternoon!
+          // Hour specified without AM/PM -> Ask intelligent AM or PM clarification!
           this.pendingReminderSlot = {
             task: cleanTask,
             hour: h,
             minute: m,
             step: 'waiting_for_period',
           };
+          const formattedTime = `${h}:${m < 10 ? '0' + m : m}`;
           return {
-            spokenResponse: `¿Prefieres el recordatorio en la mañana o en la tarde?`,
+            spokenResponse: `¿Te refieres a las ${formattedTime} AM o a las ${formattedTime} PM?`,
             actions: [],
             modelUsed: this.activeModel.name,
             agentUsed: agent?.name,
             executionTimeMs: Math.round(performance.now() - startTime),
-            reasoningSteps: [`[Recordatorio Slot] Tarea: "${cleanTask}", hora: ${h}. Preguntando si en la mañana o en la tarde.`],
+            reasoningSteps: [`[Recordatorio Slot] Tarea: "${cleanTask}", hora: ${h}. Preguntando si AM o PM.`],
           };
         }
       } else {
@@ -1689,6 +1690,27 @@ class LocalAiService {
         timestamp: Date.now(),
       });
       reasoningSteps.push('[Diagnóstico] Análisis del sistema');
+    }
+
+    // YouTube Open & Search Intent
+    if (targetText.includes('youtube') || targetText.includes('yutu')) {
+      let searchQuery = '';
+      const queryMatch = text.match(/(?:busca|buscar|pon|pone)\s+(?:en\s+youtube\s+)?(?:que\s+diga\s+)?(.+)/i) ||
+                         text.match(/youtube\s+(?:y\s+busca\s+)?(.+)/i);
+      if (queryMatch) {
+        searchQuery = queryMatch[1].replace(/^(?:y\s+busca|y\s+poner|busca)\s+/i, '').trim();
+      }
+
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'OPEN_APP',
+        title: searchQuery ? `Buscar en YouTube: "${searchQuery}"` : 'Abrir YouTube',
+        description: searchQuery ? `Búsqueda de "${searchQuery}" en YouTube` : 'Abriendo aplicación de YouTube',
+        params: { appName: 'youtube', searchQuery },
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push(`[YouTube] Búsqueda: "${searchQuery || 'Inicio'}"`);
     }
 
     // Music & Media Controls (Spotify, YouTube Music, Universal Player):

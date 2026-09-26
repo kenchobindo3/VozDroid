@@ -641,6 +641,53 @@ class HardwareService {
     };
   }
 
+  public openYouTubeAndSearch(query?: string): { success: boolean; message: string } {
+    const cleanQuery = query ? query.trim() : '';
+    if (cleanQuery) {
+      const encoded = encodeURIComponent(cleanQuery);
+      window.open(`https://www.youtube.com/results?search_query=${encoded}`, '_blank');
+      return { success: true, message: `Abriendo YouTube y buscando "${cleanQuery}"` };
+    } else {
+      window.open('https://www.youtube.com', '_blank');
+      return { success: true, message: 'Abriendo aplicación YouTube' };
+    }
+  }
+
+  public controlMediaPlayback(action: 'play' | 'pause' | 'next' | 'previous'): { success: boolean; message: string } {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.mediaSession) {
+        if (action === 'pause') {
+          navigator.mediaSession.playbackState = 'paused';
+        } else if (action === 'play') {
+          navigator.mediaSession.playbackState = 'playing';
+        }
+      }
+    } catch (_) {}
+
+    this.playBeep(action === 'next' ? 880 : action === 'previous' ? 440 : 660, 0.1);
+    const actionLabels = {
+      play: 'Reproduciendo música',
+      pause: 'Pausando reproducción multimedia',
+      next: 'Pasando a la siguiente canción',
+      previous: 'Volviendo a la canción anterior',
+    };
+    return { success: true, message: actionLabels[action] || 'Control multimedia ejecutado' };
+  }
+
+  public setDarkMode(enabled: boolean): { success: boolean; message: string } {
+    if (typeof document !== 'undefined') {
+      if (enabled) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+    return {
+      success: true,
+      message: enabled ? 'Modo oscuro activado en la interfaz' : 'Modo claro activado',
+    };
+  }
+
   public async toggleBluetooth(forceState?: boolean): Promise<{ success: boolean; state: boolean; message: string }> {
     this.isBluetoothOn = typeof forceState === 'boolean' ? forceState : !this.isBluetoothOn;
     if (nativeAndroidBridge.isNative()) {

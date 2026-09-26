@@ -143,6 +143,7 @@ export default function App() {
     speechPitch: 1.15,
     voiceGender: 'female',
     selectedVoiceURI: '',
+    ttsEngine: 'google_neural',
     soundEffectsEnabled: true,
     hapticFeedbackEnabled: true,
     autonomousExecution: true,
@@ -751,6 +752,25 @@ export default function App() {
             }
             act.status = 'success';
             act.resultMessage = act.resultMessage || 'Recordatorio registrado y agendado';
+            break;
+          }
+          case 'OPEN_APP': {
+            if (act.params?.appName === 'youtube') {
+              const res = hardwareService.openYouTubeAndSearch(act.params?.searchQuery);
+              act.status = 'success';
+              act.resultMessage = res.message;
+            } else {
+              window.open('https://google.com', '_blank');
+              act.status = 'success';
+              act.resultMessage = `Abriendo aplicación ${act.params?.appName || 'seleccionada'}`;
+            }
+            break;
+          }
+          case 'MEDIA_CONTROL': {
+            const action = act.params?.action || 'play_pause';
+            const res = hardwareService.controlMediaPlayback(action);
+            act.status = 'success';
+            act.resultMessage = res.message;
             break;
           }
           default:

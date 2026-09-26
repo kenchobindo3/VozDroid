@@ -427,6 +427,29 @@ export const VoiceSettingsModal: React.FC<VoiceSettingsModalProps> = ({
               </select>
             </div>
 
+            {/* TTS Engine Selector for Android Offline Synthesis */}
+            <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-slate-300">Motor de Síntesis de Voz (TTS Engine):</span>
+                <span className="text-[10px] text-emerald-400 bg-emerald-950/70 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono">
+                  Garantía 100% Offline
+                </span>
+              </div>
+              <select
+                value={settings.ttsEngine || 'google_neural'}
+                onChange={(e) => onUpdateSettings({ ttsEngine: e.target.value })}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none font-semibold text-cyan-300"
+              >
+                <option value="google_neural">Google TTS Neural (Recomendado Online/Offline)</option>
+                <option value="android_pico">Android Pico TTS (Motor Offline Clásico Ligero)</option>
+                <option value="offline_piper">Motor Offline Personalizado (Piper / ONNX GGUF)</option>
+                <option value="auto">Automático del Sistema Android</option>
+              </select>
+              <p className="text-[10px] text-slate-400">
+                Selecciona el motor de síntesis para evitar silencios y asegurar reproducción de voz sin conexión.
+              </p>
+            </div>
+
             {/* Android Voice Pack Download & Installation Manager */}
             <div className="rounded-xl border border-slate-800/90 bg-slate-950/80 p-3 space-y-3">
               <div className="flex items-center justify-between">

@@ -215,6 +215,7 @@ export interface AssistantSettings {
   speechPitch: number;
   voiceGender: VoiceGender;
   selectedVoiceURI: string;
+  ttsEngine?: string; // e.g. 'auto', 'google_neural', 'android_pico', 'offline_piper'
   soundEffectsEnabled: boolean;
   hapticFeedbackEnabled: boolean;
   autonomousExecution: boolean;

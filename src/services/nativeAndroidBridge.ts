@@ -92,13 +92,42 @@ class NativeAndroidBridgeService {
     }
   }
 
-  public async speak(text: string, pitch = 1.0, rate = 1.0): Promise<boolean> {
+  public isNativeTTSAvailable(): boolean {
+    if (typeof window !== 'undefined') {
+      if ((window as any).AndroidBridge?.speakNativeTTS || (window as any).AndroidTTS?.speak) {
+        return true;
+      }
+    }
+    return this.isNative();
+  }
+
+  public async speak(text: string, pitch = 1.0, rate = 1.0, lang = 'es-MX'): Promise<boolean> {
+    if (typeof window !== 'undefined') {
+      const w = window as any;
+      if (w.AndroidBridge?.speakNativeTTS) {
+        try {
+          w.AndroidBridge.speakNativeTTS(text, lang, pitch, rate);
+          return true;
+        } catch (err) {
+          console.warn('AndroidBridge.speakNativeTTS error:', err);
+        }
+      }
+      if (w.AndroidTTS?.speak) {
+        try {
+          w.AndroidTTS.speak(text, lang, pitch, rate);
+          return true;
+        } catch (err) {
+          console.warn('AndroidTTS.speak error:', err);
+        }
+      }
+    }
+
     if (!this.isNative()) return false;
     try {
       await ZannaNative.speakNative({ text, pitch, rate });
       return true;
     } catch (err) {
-      console.warn('Native speak error:', err);
+      console.warn('Native speak error (android.speech.tts.TextToSpeech):', err);
       return false;
     }
   }

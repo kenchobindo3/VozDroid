@@ -3,6 +3,7 @@
 // Fresh SpeechRecognition instantiation, Barge-In, Gender Selection & Natural TTS
 
 import { VoiceGender, ListeningMode, SpeechPlaybackState } from '../types';
+import { nativeAndroidBridge } from './nativeAndroidBridge';
 
 export interface SpeechRecognitionResultCallback {
   (transcript: string, isFinal: boolean): void;
@@ -1264,9 +1265,10 @@ class VoiceService {
 
     this.stopSpeaking();
 
-    // Ensure SpeechSynthesis is resumed on Chrome / Android
+    // Reset & resume SpeechSynthesis engine for Android Chrome
     try {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
         window.speechSynthesis.resume();
       }
     } catch (_) {}
@@ -1277,6 +1279,43 @@ class VoiceService {
       return false;
     }
 
+    // 1. Android Native TTS (android.speech.tts.TextToSpeech) Bridge Priority
+    if (nativeAndroidBridge.isNativeTTSAvailable()) {
+      this.stopSpeaking();
+      this.updatePlaybackState('speaking');
+      options.onStart?.();
+      const pitch = options.pitch || 1.0;
+      const rate = options.rate || 1.0;
+      nativeAndroidBridge.speak(cleanText, pitch, rate, this.currentLanguage).then((ok) => {
+        if (ok) {
+          const approxDurationMs = Math.max(1200, Math.round((cleanText.length / 14) * 1000 / rate));
+          setTimeout(() => {
+            this.updatePlaybackState('idle');
+            options.onEnd?.();
+          }, approxDurationMs);
+        } else {
+          // Fallback to Web Speech API
+          this.executeWebSpeech(cleanText, options);
+        }
+      });
+      return true;
+    }
+
+    return this.executeWebSpeech(cleanText, options);
+  }
+
+  private executeWebSpeech(
+    cleanText: string,
+    options: {
+      gender?: VoiceGender;
+      rate?: number;
+      pitch?: number;
+      voiceURI?: string;
+      onStart?: () => void;
+      onEnd?: () => void;
+      onError?: (err: any) => void;
+    } = {}
+  ): boolean {
     try {
       const voiceConfig = this.findVoiceByGender(options.gender || 'female');
       let targetVoice: SpeechSynthesisVoice | null = null;
