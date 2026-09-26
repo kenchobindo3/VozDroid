@@ -82,55 +82,46 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
   }, [messages.length]);
 
   return (
-    <div className="flex flex-col h-full rounded-3xl border border-slate-800/90 bg-slate-900/80 p-4 sm:p-5 backdrop-blur-xl shadow-2xl text-left">
+    <div className="flex flex-col h-full rounded-3xl border border-slate-800 bg-slate-950 p-4 sm:p-5 shadow-2xl text-left">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3.5 border-b border-slate-800/80">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-950/80 border border-cyan-800/60 text-cyan-400 shadow-md shadow-cyan-950/40">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-950/80 border border-cyan-800/60 text-cyan-400 shadow-lg">
             <Cpu className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
-              Chat Inteligente
-              <span className="text-[10px] font-semibold bg-cyan-950 border border-cyan-800/70 text-cyan-300 px-2 py-0.5 rounded-full">
+            <h2 className="text-sm sm:text-base font-extrabold text-white tracking-tight flex items-center gap-1.5">
+              Conversación Inteligente
+              <span className="text-[10px] font-bold bg-cyan-950 border border-cyan-800/80 text-cyan-300 px-2 py-0.5 rounded-full">
                 ZANNA
               </span>
             </h2>
-            <p className="text-xs text-slate-400">Conversación y Comandos de Android</p>
+            <p className="text-[11px] text-slate-400">Motor de voz y comandos en tiempo real</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-2">
           {/* Debug Toggle Button */}
           {onToggleDebug && (
             <button
               onClick={onToggleDebug}
-              title={debugMode ? 'Desactivar modo debug (Chat limpio)' : 'Activar modo debug (Ver acciones y telemetría)'}
+              title={debugMode ? 'Desactivar modo debug' : 'Activar modo debug'}
               className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold transition active:scale-95 ${
                 debugMode
-                  ? 'border-amber-600/70 bg-amber-950/50 text-amber-300 shadow-sm shadow-amber-500/10'
-                  : 'border-slate-800 bg-slate-900/80 text-slate-400 hover:text-slate-200'
+                  ? 'border-amber-600/70 bg-amber-950/50 text-amber-300'
+                  : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
               }`}
             >
               <Bug className="w-3.5 h-3.5" />
-              <span className="text-[11px] font-medium hidden sm:inline">Debug:</span>
-              <span className="text-[11px] font-bold">{debugMode ? 'ON' : 'OFF'}</span>
+              <span className="text-[11px] font-bold">{debugMode ? 'Debug: ON' : 'Debug: OFF'}</span>
             </button>
           )}
 
           {messages.length > 0 && (
             <>
               <button
-                onClick={exportChat}
-                title="Exportar chat"
-                className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/80 p-2 sm:px-2.5 sm:py-1.5 text-xs font-semibold text-slate-300 hover:text-white transition active:scale-95"
-              >
-                <Download className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="hidden md:inline">Exportar</span>
-              </button>
-              <button
                 onClick={onClearChat}
-                title="Borrar historial"
+                title="Limpiar conversación"
                 className="flex items-center gap-1 rounded-xl border border-rose-900/50 bg-rose-950/30 p-2 sm:px-2.5 sm:py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-900/50 transition active:scale-95"
               >
                 <Trash2 className="w-3.5 h-3.5 text-rose-400" />
@@ -142,13 +133,13 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
       </div>
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 space-y-3.5 overflow-y-auto pr-1 py-3 min-h-[260px] max-h-[480px]">
+      <div className="flex-1 space-y-4 overflow-y-auto pr-1 py-4 min-h-[280px] max-h-[500px]">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[220px] text-center p-6 text-slate-500">
-            <MessageSquareOff className="w-10 h-10 mb-2 stroke-1 text-slate-600" />
-            <p className="text-xs font-medium text-slate-300">Comienza a conversar con ZANNA</p>
+          <div className="flex flex-col items-center justify-center h-full min-h-[240px] text-center p-6 text-slate-500">
+            <MessageSquareOff className="w-12 h-12 mb-3 stroke-1 text-slate-600 animate-pulse" />
+            <p className="text-xs font-bold text-slate-200">ZANNA AI está lista</p>
             <p className="text-[11px] text-slate-400 mt-1 max-w-xs leading-relaxed">
-              Puedes hablarle como a un asistente inteligente (hacer preguntas, reflexionar) o darle órdenes directas de tu teléfono Android.
+              Puedes hablarle libremente en español de forma offline. Di comandos como "activa la linterna", "reproduce música en YouTube" o pídele que redacte tus mensajes.
             </p>
           </div>
         ) : (
@@ -159,22 +150,22 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
             return (
               <div
                 key={msg.id}
-                className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
+                className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1`}
               >
                 {/* Sender badge & time */}
-                <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-slate-400">
+                <div className="flex items-center gap-1.5 px-1 text-[10px] text-slate-500">
                   {isUser ? (
                     <>
                       <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      <span className="font-semibold text-cyan-400">Tú</span>
+                      <span className="font-bold text-cyan-400 uppercase tracking-wider">Tú</span>
                       <User className="w-3 h-3 text-cyan-400" />
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-3 h-3 text-emerald-400" />
-                      <span className="font-semibold text-emerald-400">{msg.agentUsed || 'ZANNA'}</span>
+                      <Sparkles className="w-3 h-3 text-emerald-400 animate-pulse" />
+                      <span className="font-bold text-emerald-400 uppercase tracking-wider">{msg.agentUsed || 'ZANNA AI'}</span>
                       {debugMode && msg.modelUsed && (
-                        <span className="text-[9px] bg-slate-800 px-1.5 py-0.2 rounded text-slate-300 border border-slate-700/60">
+                        <span className="text-[9px] bg-slate-900 px-1.5 py-0.2 rounded text-slate-400 border border-slate-800">
                           {msg.modelUsed.split(' ')[0]}
                         </span>
                       )}
@@ -185,20 +176,20 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
 
                 {/* Message Bubble */}
                 <div
-                  className={`relative group max-w-[92%] sm:max-w-[82%] rounded-2xl p-3.5 shadow-sm text-xs leading-relaxed transition ${
+                  className={`relative group max-w-[88%] sm:max-w-[78%] rounded-2xl p-4 shadow-lg text-[13px] leading-relaxed transition-all duration-150 ${
                     isUser
-                      ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-tr-xs'
-                      : 'bg-slate-950/90 border border-slate-800/90 text-slate-200 rounded-tl-xs'
+                      ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-tr-none'
+                      : 'bg-slate-900 border border-slate-800/80 text-slate-100 rounded-tl-none'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                  <p className="whitespace-pre-wrap font-sans">{msg.text}</p>
 
                   {/* Actions Executed List: ONLY VISIBLE IF DEBUG MODE IS ON OR NOT EMPTY */}
                   {debugMode && msg.actionsExecuted && msg.actionsExecuted.length > 0 && (
-                    <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex flex-col gap-1.5">
+                    <div className="mt-3 pt-2.5 border-t border-slate-800 flex flex-col gap-1.5">
                       <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
-                        Acciones de Android Ejecutadas ({msg.actionsExecuted.length}):
+                        Acciones Ejecutadas ({msg.actionsExecuted.length}):
                       </span>
                       <div className="flex flex-wrap gap-1.5">
                         {msg.actionsExecuted.map((act) => (
@@ -215,7 +206,7 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
 
                   {/* Assistant Toolbar */}
                   {!isUser && (
-                    <div className="mt-2.5 pt-2 border-t border-slate-800/40 flex items-center justify-between text-[10px] text-slate-400">
+                    <div className="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => onPlayVoice(msg.text)}
