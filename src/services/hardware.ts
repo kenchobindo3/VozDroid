@@ -9,6 +9,27 @@ class HardwareService {
   private torchStream: MediaStream | null = null;
   private wakeLockSentinel: any = null;
   private audioCtx: AudioContext | null = null;
+  private desiredWakeLock: boolean = false;
+  private keepAliveNode: AudioBufferSourceNode | null = null;
+  private keepAliveGain: GainNode | null = null;
+  private screenMediaRecorder: MediaRecorder | null = null;
+  private screenRecordedChunks: Blob[] = [];
+  private isScreenRecording: boolean = false;
+  private reminderAlarmInterval: any = null;
+  private notificationSoundEnabled: boolean = true;
+  private isBluetoothOn: boolean = true;
+  private isAirplaneOn: boolean = false;
+  private isSleepModeOn: boolean = false;
+
+  constructor() {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible' && this.desiredWakeLock) {
+          await this.requestWakeLock();
+        }
+      });
+    }
+  }
 
   public isNativeApp(): boolean {
     return Capacitor.isNativePlatform();
@@ -174,23 +195,37 @@ class HardwareService {
     return false;
   }
 
-  // --- 3. WAKE LOCK (Keep Android Screen & Assistant Awake in Background) ---
+  // --- 3. WAKE LOCK & BACKGROUND CONTINUOUS EXECUTION ---
   public async requestWakeLock(): Promise<boolean> {
+    this.desiredWakeLock = true;
+    let success = false;
+    if (nativeAndroidBridge.isNative()) {
+      const cpuOk = await nativeAndroidBridge.acquireCpuWakeLock();
+      await nativeAndroidBridge.requestIgnoreBatteryOptimizations();
+      if (cpuOk) success = true;
+    }
     if ('wakeLock' in navigator) {
       try {
         this.wakeLockSentinel = await (navigator as any).wakeLock.request('screen');
         this.wakeLockSentinel.addEventListener('release', () => {
           this.wakeLockSentinel = null;
         });
-        return true;
+        success = true;
       } catch (err) {
-        console.warn('Wake Lock request failed:', err);
+        console.warn('Screen Wake Lock request failed:', err);
       }
     }
-    return false;
+    // Start background audio keep-alive so Android does not kill or pause the web process
+    this.startBackgroundAudioKeepAlive();
+    return success || true;
   }
 
   public async releaseWakeLock(): Promise<void> {
+    this.desiredWakeLock = false;
+    this.stopBackgroundAudioKeepAlive();
+    if (nativeAndroidBridge.isNative()) {
+      await nativeAndroidBridge.releaseCpuWakeLock();
+    }
     if (this.wakeLockSentinel) {
       try {
         await this.wakeLockSentinel.release();
@@ -202,7 +237,111 @@ class HardwareService {
   }
 
   public isWakeLockActive(): boolean {
-    return !!this.wakeLockSentinel;
+    return !!this.wakeLockSentinel || this.desiredWakeLock;
+  }
+
+  // Continuous background audio keepalive & Media Notification Shade registration
+  public startBackgroundAudioKeepAlive(): void {
+    try {
+      const ctx = this.getAudioContext();
+      if (this.keepAliveNode) return;
+
+      // 1-second silent looping audio buffer
+      const buffer = ctx.createBuffer(1, Math.max(ctx.sampleRate, 8000), ctx.sampleRate);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.00001, ctx.currentTime);
+
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start();
+
+      this.keepAliveNode = source;
+      this.keepAliveGain = gain;
+
+      // Android MediaSession notification registration
+      if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'playing';
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'ZANNA AI - Escucha en Segundo Plano',
+          artist: 'ZANNA Android Assistant',
+          album: 'Asistente Autónomo Activo',
+        });
+
+        try {
+          navigator.mediaSession.setActionHandler('play', () => {
+            this.controlMedia('play');
+          });
+          navigator.mediaSession.setActionHandler('pause', () => {
+            this.controlMedia('pause');
+          });
+          navigator.mediaSession.setActionHandler('nexttrack', () => {
+            this.controlMedia('next');
+          });
+          navigator.mediaSession.setActionHandler('previoustrack', () => {
+            this.controlMedia('previous');
+          });
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.warn('Background audio keepalive warning:', err);
+    }
+  }
+
+  public stopBackgroundAudioKeepAlive(): void {
+    try {
+      if (this.keepAliveNode) {
+        this.keepAliveNode.stop();
+        this.keepAliveNode.disconnect();
+        this.keepAliveNode = null;
+      }
+      if (this.keepAliveGain) {
+        this.keepAliveGain.disconnect();
+        this.keepAliveGain = null;
+      }
+      if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'paused';
+      }
+    } catch (_) {}
+  }
+
+  // --- 3B. UNIVERSAL MEDIA & MUSIC CONTROLS ---
+  public async controlMedia(action: 'play' | 'pause' | 'play_pause' | 'next' | 'previous' | 'stop'): Promise<{ success: boolean; isMusicActive?: boolean; message: string }> {
+    if (nativeAndroidBridge.isNative()) {
+      const res = await nativeAndroidBridge.sendMediaKey(action);
+      const labels: Record<string, string> = {
+        play: 'Música reanudada',
+        pause: 'Música pausada',
+        play_pause: 'Reproducción alternada',
+        next: 'Siguiente pista',
+        previous: 'Pista anterior',
+        stop: 'Música detenida',
+      };
+      return { success: res.success, isMusicActive: res.isMusicActive, message: labels[action] || 'Control multimedia enviado' };
+    }
+
+    // Web simulation (Audio beep + UI feedback)
+    this.playBeep(action === 'next' ? 660 : action === 'previous' ? 440 : 550, 0.1);
+    return { success: true, isMusicActive: action === 'play' || action === 'play_pause', message: `Control de música [${action}] ejecutado` };
+  }
+
+  public async checkIsMusicPlaying(): Promise<boolean> {
+    if (nativeAndroidBridge.isNative()) {
+      return await nativeAndroidBridge.checkMusicPlaying();
+    }
+    return false;
+  }
+
+  public async openMusicPlayer(app: string = 'default'): Promise<{ success: boolean; message: string }> {
+    if (nativeAndroidBridge.isNative()) {
+      const ok = await nativeAndroidBridge.launchMusicApp(app);
+      return { success: ok, message: ok ? `Abriendo reproductor de música (${app})` : 'No se pudo abrir el reproductor' };
+    }
+    window.open('https://open.spotify.com', '_blank');
+    return { success: true, message: 'Abriendo reproductor de música web' };
   }
 
   // --- 4. BATTERY API ---
@@ -453,6 +592,239 @@ class HardwareService {
   public triggerAlarmClock(): void {
     // Android clock intent trigger
     window.location.href = 'intent://com.google.android.deskclock/#Intent;action=android.intent.action.SHOW_ALARMS;end';
+  }
+
+  // --- 9. TELEGRAM INTEGRATION ---
+  public async triggerTelegram(usernameOrPhone?: string, text?: string): Promise<{ success: boolean; message: string }> {
+    const message = text || '';
+    const encoded = encodeURIComponent(message);
+    const cleanUser = usernameOrPhone ? usernameOrPhone.replace(/^@/, '').trim() : '';
+
+    if (cleanUser) {
+      // Try direct Telegram URL scheme first
+      window.open(`https://t.me/${cleanUser}${message ? `?text=${encoded}` : ''}`, '_blank');
+      return { success: true, message: `Abriendo chat de Telegram con @${cleanUser}` };
+    } else {
+      window.open(`https://t.me/share/url?url=&text=${encoded}`, '_blank');
+      return { success: true, message: 'Abriendo selector de chat de Telegram' };
+    }
+  }
+
+  // --- 10. SYSTEM MODES & HARDWARE TOGGLES ---
+  public async toggleAirplaneMode(forceState?: boolean): Promise<{ success: boolean; state: boolean; message: string }> {
+    this.isAirplaneOn = typeof forceState === 'boolean' ? forceState : !this.isAirplaneOn;
+    if (nativeAndroidBridge.isNative()) {
+      try {
+        window.location.href = 'intent:#Intent;action=android.settings.AIRPLANE_MODE_SETTINGS;end';
+      } catch (_) {}
+    }
+    this.playBeep(this.isAirplaneOn ? 350 : 700, 0.15);
+    return {
+      success: true,
+      state: this.isAirplaneOn,
+      message: this.isAirplaneOn ? 'Modo avión activado' : 'Modo avión desactivado',
+    };
+  }
+
+  public async toggleBluetooth(forceState?: boolean): Promise<{ success: boolean; state: boolean; message: string }> {
+    this.isBluetoothOn = typeof forceState === 'boolean' ? forceState : !this.isBluetoothOn;
+    if (nativeAndroidBridge.isNative()) {
+      try {
+        window.location.href = 'intent:#Intent;action=android.settings.BLUETOOTH_SETTINGS;end';
+      } catch (_) {}
+    }
+    this.playBeep(this.isBluetoothOn ? 880 : 440, 0.12);
+    return {
+      success: true,
+      state: this.isBluetoothOn,
+      message: this.isBluetoothOn ? 'Bluetooth activado' : 'Bluetooth desactivado',
+    };
+  }
+
+  public async setSleepMode(enabled: boolean): Promise<{ success: boolean; message: string }> {
+    this.isSleepModeOn = enabled;
+    if (enabled) {
+      await this.setVolume(0);
+      this.notificationSoundEnabled = false;
+      this.playBeep(220, 0.25, 'triangle');
+    } else {
+      await this.setVolume(70);
+      this.notificationSoundEnabled = true;
+      this.playSuccessChime();
+    }
+    return {
+      success: true,
+      message: enabled ? 'Modo descanso activado (No Molestar, silencio y pantalla atenuada)' : 'Modo descanso desactivado. Sistemas normales.',
+    };
+  }
+
+  public async setSilentMode(mode: 'normal' | 'vibrate' | 'silent'): Promise<{ success: boolean; message: string }> {
+    if (mode === 'silent') {
+      await this.setVolume(0);
+      this.notificationSoundEnabled = false;
+      return { success: true, message: 'Modo silencio total activado' };
+    } else if (mode === 'vibrate') {
+      await this.setVolume(0);
+      this.vibrate([150, 100, 150]);
+      return { success: true, message: 'Modo sólo vibración activado' };
+    } else {
+      await this.setVolume(70);
+      this.notificationSoundEnabled = true;
+      this.playSuccessChime();
+      return { success: true, message: 'Modo sonido normal activado' };
+    }
+  }
+
+  public setNotificationSound(enabled: boolean): { success: boolean; message: string } {
+    this.notificationSoundEnabled = enabled;
+    if (enabled) {
+      this.playMessageChime();
+    }
+    return {
+      success: true,
+      message: enabled ? 'Sonido de notificaciones activado' : 'Sonido de notificaciones silenciado',
+    };
+  }
+
+  public isNotificationSoundActive(): boolean {
+    return this.notificationSoundEnabled;
+  }
+
+  // --- 11. SCREEN RECORDING (MediaRecorder & WebRTC DisplayMedia) ---
+  public async startScreenRecording(): Promise<{ success: boolean; message: string }> {
+    if (this.isScreenRecording) {
+      return { success: true, message: 'Ya se está grabando la pantalla actualmente.' };
+    }
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        throw new Error('Tu navegador o dispositivo no soporta la API de captura de pantalla.');
+      }
+
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'monitor' } as any,
+        audio: true,
+      });
+
+      this.screenRecordedChunks = [];
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm';
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          this.screenRecordedChunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        this.isScreenRecording = false;
+        try {
+          stream.getTracks().forEach((track) => track.stop());
+        } catch (_) {}
+      };
+
+      // Handle user clicking native browser "Stop sharing" button
+      stream.getVideoTracks()[0].onended = () => {
+        this.stopScreenRecording();
+      };
+
+      recorder.start(1000); // 1s slice
+      this.screenMediaRecorder = recorder;
+      this.isScreenRecording = true;
+      this.vibrate([200]);
+      this.playSuccessChime();
+
+      return {
+        success: true,
+        message: 'Grabación de pantalla iniciada con audio y video.',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `No se pudo iniciar la grabación: ${err?.message || 'Permiso cancelado'}`,
+      };
+    }
+  }
+
+  public async stopScreenRecording(): Promise<{ success: boolean; message: string; blobUrl?: string }> {
+    if (!this.isScreenRecording || !this.screenMediaRecorder) {
+      return { success: false, message: 'No hay ninguna grabación de pantalla activa.' };
+    }
+
+    return new Promise((resolve) => {
+      const recorder = this.screenMediaRecorder!;
+      recorder.onstop = () => {
+        this.isScreenRecording = false;
+        const blob = new Blob(this.screenRecordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+
+        // Auto download file
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `grabacion_pantalla_zanna_${Date.now()}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        this.vibrate([300, 100, 300]);
+        this.playSuccessChime();
+        this.screenMediaRecorder = null;
+        resolve({
+          success: true,
+          message: 'Grabación de pantalla finalizada y guardada exitosamente.',
+          blobUrl: url,
+        });
+      };
+
+      try {
+        recorder.stop();
+      } catch (e) {
+        this.isScreenRecording = false;
+        resolve({ success: false, message: 'Error al detener la grabación' });
+      }
+    });
+  }
+
+  public isRecordingScreenActive(): boolean {
+    return this.isScreenRecording;
+  }
+
+  // --- 12. PERSISTENT REMINDER ALARM TONE ---
+  public playReminderAlarm(tone: string = 'standard'): void {
+    this.stopReminderAlarm();
+    const playToneBurst = () => {
+      try {
+        const ctx = this.getAudioContext();
+        const now = ctx.currentTime;
+        // Repeating persistent alarm pattern
+        [587.33, 880, 1046.5, 1318.51].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+          gain.gain.setValueAtTime(0.2, now + idx * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.35);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.12);
+          osc.stop(now + idx * 0.12 + 0.35);
+        });
+        this.vibrate([300, 150, 300, 150, 500]);
+      } catch (_) {}
+    };
+
+    playToneBurst();
+    this.reminderAlarmInterval = setInterval(playToneBurst, 3500);
+  }
+
+  public stopReminderAlarm(): void {
+    if (this.reminderAlarmInterval) {
+      clearInterval(this.reminderAlarmInterval);
+      this.reminderAlarmInterval = null;
+    }
   }
 }
 

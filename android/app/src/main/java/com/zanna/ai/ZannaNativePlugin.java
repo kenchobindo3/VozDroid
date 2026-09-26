@@ -13,9 +13,13 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.MediaStore;
+import android.provider.Settings;
+import android.view.KeyEvent;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -454,5 +458,156 @@ public class ZannaNativePlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("success", true);
         call.resolve(ret);
+    }
+
+    // --- 9. UNIVERSAL MEDIA & MUSIC CONTROLS ---
+    @PluginMethod
+    public void dispatchMediaKey(PluginCall call) {
+        String key = call.getString("key", "play_pause").toLowerCase();
+        try {
+            Context ctx = getContext();
+            AudioManager am = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
+            if (am == null) {
+                call.reject("Audio manager not available");
+                return;
+            }
+
+            int keyCode = KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE;
+            if ("play".equals(key)) {
+                keyCode = KeyEvent.KEYCODE_MEDIA_PLAY;
+            } else if ("pause".equals(key)) {
+                keyCode = KeyEvent.KEYCODE_MEDIA_PAUSE;
+            } else if ("next".equals(key) || "skip".equals(key)) {
+                keyCode = KeyEvent.KEYCODE_MEDIA_NEXT;
+            } else if ("previous".equals(key) || "prev".equals(key) || "back".equals(key)) {
+                keyCode = KeyEvent.KEYCODE_MEDIA_PREVIOUS;
+            } else if ("stop".equals(key)) {
+                keyCode = KeyEvent.KEYCODE_MEDIA_STOP;
+            }
+
+            long eventTime = SystemClock.uptimeMillis();
+            KeyEvent downEvent = new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, keyCode, 0);
+            am.dispatchMediaKeyEvent(downEvent);
+            KeyEvent upEvent = new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, keyCode, 0);
+            am.dispatchMediaKeyEvent(upEvent);
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("key", key);
+            ret.put("isMusicActive", am.isMusicActive());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Media dispatch failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void isMusicActive(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            AudioManager am = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
+            boolean active = am != null && am.isMusicActive();
+            JSObject ret = new JSObject();
+            ret.put("isMusicActive", active);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Check music active error: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void openMusicApp(PluginCall call) {
+        String app = call.getString("app", "default").toLowerCase();
+        try {
+            Context ctx = getContext();
+            Intent intent = null;
+
+            if ("spotify".equals(app)) {
+                intent = new Intent(Intent.ACTION_VIEW, Uri.parse("spotify:"));
+            } else if ("youtube_music".equals(app) || "ytmusic".equals(app)) {
+                intent = new Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube.music:"));
+            }
+
+            if (intent == null || intent.resolveActivity(ctx.getPackageManager()) == null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
+                    intent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC);
+                } else {
+                    intent = new Intent(Intent.ACTION_MAIN);
+                    intent.addCategory(Intent.CATEGORY_APP_MUSIC);
+                }
+            }
+
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(intent);
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Launch music app failed: " + e.getMessage());
+        }
+    }
+
+    // --- 10. BACKGROUND CPU WAKE LOCK & ACCESSIBILITY CONTINUITY ---
+    private PowerManager.WakeLock cpuWakeLock = null;
+
+    @PluginMethod
+    public void acquireCpuWakeLock(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                if (cpuWakeLock == null) {
+                    cpuWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Zanna:CpuWakeLock");
+                    cpuWakeLock.setReferenceCounted(false);
+                }
+                if (!cpuWakeLock.isHeld()) {
+                    cpuWakeLock.acquire(120 * 60 * 1000L); // 2 hours max safe timeout
+                }
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("held", cpuWakeLock != null && cpuWakeLock.isHeld());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("WakeLock request failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void releaseCpuWakeLock(PluginCall call) {
+        try {
+            if (cpuWakeLock != null && cpuWakeLock.isHeld()) {
+                cpuWakeLock.release();
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("held", false);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("WakeLock release failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void requestIgnoreBatteryOptimizations(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Context ctx = getContext();
+                PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+                String packageName = ctx.getPackageName();
+                if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + packageName));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ctx.startActivity(intent);
+                }
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Battery optimization request failed: " + e.getMessage());
+        }
     }
 }

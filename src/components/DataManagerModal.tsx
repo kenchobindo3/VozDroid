@@ -47,6 +47,7 @@ import {
   DbAdminMessage,
 } from '../services/dbAdminAgent';
 import { AiKnowledgeItem, AiKnowledgeCategory } from '../types';
+import { AiThinkingVisualizer } from './AiThinkingVisualizer';
 
 interface DataManagerModalProps {
   isOpen: boolean;
@@ -59,8 +60,9 @@ export const DataManagerModal: React.FC<DataManagerModalProps> = ({
   onClose,
   onDataModified,
 }) => {
-  // Mode switcher: AI Learning Knowledge vs AI DB Agent vs Manual Table Editor
-  const [managerTab, setManagerTab] = useState<'learning' | 'agent' | 'tables'>('learning');
+  // Mode switcher: Thinking Visualizer vs AI Learning Knowledge vs AI DB Agent vs Manual Tables
+  const [managerTab, setManagerTab] = useState<'thinking' | 'learning' | 'agent' | 'tables'>('thinking');
+  const [engineType, setEngineType] = useState<'vozdroid' | 'jev'>('jev');
 
   // Dedicated AI Learning Knowledge State
   const [knowledgeList, setKnowledgeList] = useState<AiKnowledgeItem[]>([]);
@@ -446,52 +448,101 @@ export const DataManagerModal: React.FC<DataManagerModalProps> = ({
           </div>
         )}
 
-        {/* Tab Switcher: 1. Aprendizaje IAs | 2. Agente Nexus DB | 3. Tablas Manuales */}
-        <div className="flex border-b border-slate-800 bg-slate-950/60 px-4 sm:px-6 pt-2 gap-2 overflow-x-auto no-scrollbar">
-          <button
-            onClick={() => setManagerTab('learning')}
-            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-t-2xl border-t border-x transition shrink-0 ${
-              managerTab === 'learning'
-                ? 'bg-slate-900 text-emerald-300 border-emerald-500/50 shadow-sm'
-                : 'text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-900/40'
-            }`}
-          >
-            <Brain className="w-4 h-4 text-emerald-400" />
-            <span>Base de Aprendizaje IA</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-950 border border-emerald-800 text-emerald-300">
-              {knowledgeList.length}
-            </span>
-          </button>
+        {/* Tab Switcher & Engine Selector */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 bg-slate-950/60 px-4 sm:px-6 pt-2 gap-2 overflow-x-auto no-scrollbar">
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => setManagerTab('thinking')}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-t-2xl border-t border-x transition shrink-0 ${
+                managerTab === 'thinking'
+                  ? 'bg-slate-900 text-indigo-300 border-indigo-500/50 shadow-sm'
+                  : 'text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-900/40'
+              }`}
+            >
+              <Brain className="w-4 h-4 text-indigo-400 animate-pulse" />
+              <span>Proceso Neuronal</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-950 border border-indigo-800 text-indigo-300">
+                Visual
+              </span>
+            </button>
 
-          <button
-            onClick={() => setManagerTab('agent')}
-            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-t-2xl border-t border-x transition shrink-0 ${
-              managerTab === 'agent'
-                ? 'bg-slate-900 text-cyan-300 border-cyan-500/50 shadow-sm'
-                : 'text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-900/40'
-            }`}
-          >
-            <Bot className="w-4 h-4 text-cyan-400" />
-            <span>Agente Nexus DB</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-cyan-950 border border-cyan-800 text-cyan-300 hidden sm:inline">
-              Autónomo
-            </span>
-          </button>
+            <button
+              onClick={() => setManagerTab('learning')}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-t-2xl border-t border-x transition shrink-0 ${
+                managerTab === 'learning'
+                  ? 'bg-slate-900 text-emerald-300 border-emerald-500/50 shadow-sm'
+                  : 'text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-900/40'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <span>Base de Aprendizaje</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-950 border border-emerald-800 text-emerald-300">
+                {knowledgeList.length}
+              </span>
+            </button>
 
-          <button
-            onClick={() => setManagerTab('tables')}
-            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-t-2xl border-t border-x transition shrink-0 ${
-              managerTab === 'tables'
-                ? 'bg-slate-900 text-purple-300 border-purple-500/50 shadow-sm'
-                : 'text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-900/40'
-            }`}
-          >
-            <Layers className="w-4 h-4 text-purple-400" />
-            <span>Tablas del Sistema</span>
-          </button>
+            <button
+              onClick={() => setManagerTab('agent')}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-t-2xl border-t border-x transition shrink-0 ${
+                managerTab === 'agent'
+                  ? 'bg-slate-900 text-cyan-300 border-cyan-500/50 shadow-sm'
+                  : 'text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-900/40'
+              }`}
+            >
+              <Bot className="w-4 h-4 text-cyan-400" />
+              <span>Administrador DB</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-cyan-950 border border-cyan-800 text-cyan-300 hidden sm:inline">
+                {engineType.toUpperCase()}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setManagerTab('tables')}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-t-2xl border-t border-x transition shrink-0 ${
+                managerTab === 'tables'
+                  ? 'bg-slate-900 text-purple-300 border-purple-500/50 shadow-sm'
+                  : 'text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-900/40'
+              }`}
+            >
+              <Layers className="w-4 h-4 text-purple-400" />
+              <span>Tablas del Sistema</span>
+            </button>
+          </div>
+
+          {/* Engine Selector (VozDroid vs JEV Open-Source) */}
+          <div className="flex items-center gap-1.5 pb-2 sm:pb-0 shrink-0">
+            <span className="text-[11px] text-slate-400 font-medium">Motor Analítico:</span>
+            <div className="flex rounded-xl bg-slate-900 p-0.5 border border-slate-800">
+              <button
+                onClick={() => setEngineType('jev')}
+                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
+                  engineType === 'jev'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                JEV Open-Source
+              </button>
+              <button
+                onClick={() => setEngineType('vozdroid')}
+                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
+                  engineType === 'vozdroid'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                VozDroid Core
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* View 0: Local AI Learning Knowledge Base Workspace */}
+        {/* View 0: AI Thinking Visualizer */}
+        {managerTab === 'thinking' && (
+          <AiThinkingVisualizer engineType={engineType} />
+        )}
+
+        {/* View 1: Local AI Learning Knowledge Base Workspace */}
         {managerTab === 'learning' && (
           <div className="flex-1 flex flex-col overflow-hidden bg-slate-950/40">
             {/* Top Metrics Ribbon */}

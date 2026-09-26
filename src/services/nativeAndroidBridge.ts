@@ -31,6 +31,12 @@ export interface ZannaNativePluginInterface {
   openCamera(): Promise<{ success: boolean }>;
   getNativeDiagnostics(): Promise<NativeDiagnosticsResult>;
   showToast(options: { message: string }): Promise<{ success: boolean }>;
+  dispatchMediaKey(options: { key: string }): Promise<{ success: boolean; key: string; isMusicActive: boolean }>;
+  isMusicActive(): Promise<{ isMusicActive: boolean }>;
+  openMusicApp(options?: { app?: string }): Promise<{ success: boolean }>;
+  acquireCpuWakeLock(): Promise<{ success: boolean; held: boolean }>;
+  releaseCpuWakeLock(): Promise<{ success: boolean; held: boolean }>;
+  requestIgnoreBatteryOptimizations(): Promise<{ success: boolean }>;
   addListener(eventName: string, listenerFunc: (data: any) => void): Promise<any>;
   removeAllListeners(): Promise<void>;
 }
@@ -162,6 +168,64 @@ class NativeAndroidBridgeService {
     if (!this.isNative()) return;
     try {
       await ZannaNative.showToast({ message });
+    } catch (_) {}
+  }
+
+  public async sendMediaKey(key: 'play' | 'pause' | 'play_pause' | 'next' | 'previous' | 'stop'): Promise<{ success: boolean; isMusicActive?: boolean }> {
+    if (!this.isNative()) return { success: false };
+    try {
+      const res = await ZannaNative.dispatchMediaKey({ key });
+      return { success: !!res.success, isMusicActive: res.isMusicActive };
+    } catch (err) {
+      console.warn('Native dispatchMediaKey error:', err);
+      return { success: false };
+    }
+  }
+
+  public async checkMusicPlaying(): Promise<boolean> {
+    if (!this.isNative()) return false;
+    try {
+      const res = await ZannaNative.isMusicActive();
+      return !!res.isMusicActive;
+    } catch (err) {
+      console.warn('Native isMusicActive error:', err);
+      return false;
+    }
+  }
+
+  public async launchMusicApp(app: string = 'default'): Promise<boolean> {
+    if (!this.isNative()) return false;
+    try {
+      await ZannaNative.openMusicApp({ app });
+      return true;
+    } catch (err) {
+      console.warn('Native openMusicApp error:', err);
+      return false;
+    }
+  }
+
+  public async acquireCpuWakeLock(): Promise<boolean> {
+    if (!this.isNative()) return false;
+    try {
+      const res = await ZannaNative.acquireCpuWakeLock();
+      return !!res.held;
+    } catch (err) {
+      console.warn('Native acquireCpuWakeLock error:', err);
+      return false;
+    }
+  }
+
+  public async releaseCpuWakeLock(): Promise<void> {
+    if (!this.isNative()) return;
+    try {
+      await ZannaNative.releaseCpuWakeLock();
+    } catch (_) {}
+  }
+
+  public async requestIgnoreBatteryOptimizations(): Promise<void> {
+    if (!this.isNative()) return;
+    try {
+      await ZannaNative.requestIgnoreBatteryOptimizations();
     } catch (_) {}
   }
 }

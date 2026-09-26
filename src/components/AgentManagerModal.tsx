@@ -63,6 +63,9 @@ export const AgentManagerModal: React.FC<AgentManagerModalProps> = ({
     try {
       const text = await file.text();
       const parsedAgent = parseAgentFile(text, file.name);
+      if (!parsedAgent) {
+        throw new Error('El archivo no contiene un formato de agente válido (debe incluir "name" y "role").');
+      }
       await onSaveCustomAgent(parsedAgent);
       onSelectAgent(parsedAgent);
       setActiveTab('presets');

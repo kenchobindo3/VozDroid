@@ -9,9 +9,21 @@ import {
   AIAgent,
   ExternalApiConfig,
   ModelDownloadProgress,
+  ContactInfo,
+  ReminderItem,
+  AiTrainingSession,
+  AiKnowledgeItem,
 } from '../types';
 import { hardwareService } from './hardware';
-import { saveModelFile, deleteCustomModel } from './db';
+import {
+  saveModelFile,
+  deleteCustomModel,
+  getAllContacts,
+  getAllReminders,
+  saveReminder,
+  getAllTrainingSessions,
+  getAllKnowledge,
+} from './db';
 import { dbAdminAgent } from './dbAdminAgent';
 
 export interface LocalAiResponse {
@@ -132,6 +144,65 @@ class LocalAiService {
 
   public getCustomModels(): LocalModelConfig[] {
     return this.customModels;
+  }
+
+  // Pending reminder conversational slot filling state
+  private pendingReminderSlot: {
+    task: string;
+    hour?: number;
+    minute?: number;
+    period?: 'AM' | 'PM';
+    step: 'waiting_for_time' | 'waiting_for_period';
+  } | null = null;
+
+  public calculateTargetTimestamp(hour: number, minute: number, period: 'AM' | 'PM'): number {
+    const now = new Date();
+    let targetHour = hour;
+    if (period === 'PM' && targetHour < 12) targetHour += 12;
+    if (period === 'AM' && targetHour === 12) targetHour = 0;
+
+    const targetDate = new Date();
+    targetDate.setHours(targetHour, minute, 0, 0);
+    if (targetDate.getTime() <= now.getTime()) {
+      // Schedule for tomorrow if the hour has already passed today
+      targetDate.setDate(targetDate.getDate() + 1);
+    }
+    return targetDate.getTime();
+  }
+
+  // Resolve contact by Name OR by Alias (e.g. "mamá", "amor", "jefe", "tía")
+  public resolveContact(
+    queryText: string,
+    contacts: ContactInfo[]
+  ): { contact: ContactInfo; matchedBy: 'alias' | 'name' } | null {
+    if (!contacts || contacts.length === 0) return null;
+    const cleanQuery = this.normalize(queryText);
+
+    // 1. Prioritize Alias Match (e.g. "mamá", "amor", "jefe", "tía", "hermano")
+    for (const c of contacts) {
+      if (c.alias) {
+        const cleanAlias = this.normalize(c.alias);
+        if (cleanAlias && (cleanQuery.includes(cleanAlias) || cleanAlias.includes(cleanQuery))) {
+          return { contact: c, matchedBy: 'alias' };
+        }
+      }
+    }
+
+    // 2. Exact or Partial Name Match
+    for (const c of contacts) {
+      const cleanName = this.normalize(c.name);
+      if (cleanName && (cleanQuery.includes(cleanName) || cleanName.includes(cleanQuery))) {
+        return { contact: c, matchedBy: 'name' };
+      }
+      const words = cleanName.split(' ');
+      for (const w of words) {
+        if (w.length > 2 && cleanQuery.includes(w)) {
+          return { contact: c, matchedBy: 'name' };
+        }
+      }
+    }
+
+    return null;
   }
 
   // Helper to normalize input: strips accents, lowercases, removes punctuation & cleans voice prefixes
@@ -509,6 +580,206 @@ class LocalAiService {
       };
     }
 
+    // --- 0. CHECK PENDING REMINDER CONVERSATIONAL SLOTS FIRST ---
+    if (this.pendingReminderSlot) {
+      const slot = this.pendingReminderSlot;
+      if (slot.step === 'waiting_for_time') {
+        const hourMatch = cleanCommand.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm|de la manana|de la tarde|de la noche)?/i);
+        if (hourMatch) {
+          const h = parseInt(hourMatch[1], 10);
+          const m = hourMatch[2] ? parseInt(hourMatch[2], 10) : 0;
+          const periodStr = (hourMatch[3] || '').toLowerCase();
+          let period: 'AM' | 'PM' | null = null;
+          if (periodStr.includes('am') || periodStr.includes('manana')) period = 'AM';
+          else if (periodStr.includes('pm') || periodStr.includes('tarde') || periodStr.includes('noche')) period = 'PM';
+
+          if (period) {
+            this.pendingReminderSlot = null;
+            const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+            const newReminder: ReminderItem = {
+              id: 'rem-' + Date.now(),
+              title: slot.task,
+              timeString: timeStr,
+              targetTime: this.calculateTargetTimestamp(h, m, period),
+              completed: false,
+              createdAt: Date.now(),
+              vibrate: true,
+              soundTone: 'standard',
+            };
+            await saveReminder(newReminder);
+            actions.push({
+              id: 'act-' + Math.random().toString(36).substring(2, 9),
+              type: 'SET_REMINDER',
+              title: `Recordatorio: ${slot.task}`,
+              description: `Programado a las ${timeStr} con alarma persistente`,
+              params: { reminder: newReminder },
+              status: 'success',
+              resultMessage: `Recordatorio agendado a las ${timeStr}`,
+              timestamp: Date.now(),
+            });
+            return {
+              spokenResponse: `¡Entendido! He agendado tu recordatorio: "${slot.task}" para las ${timeStr}. Sonará con alarma persistente, vibración y notificación.`,
+              actions,
+              modelUsed: this.activeModel.name,
+              agentUsed: agent?.name,
+              executionTimeMs: Math.round(performance.now() - startTime),
+              reasoningSteps: [`[Recordatorio] Slot completado: "${slot.task}" a las ${timeStr}`],
+            };
+          } else {
+            slot.hour = h;
+            slot.minute = m;
+            slot.step = 'waiting_for_period';
+            return {
+              spokenResponse: `¿Prefieres a las ${h} en la mañana o en la tarde?`,
+              actions: [],
+              modelUsed: this.activeModel.name,
+              agentUsed: agent?.name,
+              executionTimeMs: Math.round(performance.now() - startTime),
+              reasoningSteps: [`[Recordatorio] Hora fijada en ${h}. Preguntando si AM o PM.`],
+            };
+          }
+        }
+      } else if (slot.step === 'waiting_for_period') {
+        let period: 'AM' | 'PM' | null = null;
+        if (cleanCommand.includes('manana') || cleanCommand.includes('am')) period = 'AM';
+        else if (cleanCommand.includes('tarde') || cleanCommand.includes('noche') || cleanCommand.includes('pm')) period = 'PM';
+
+        if (period) {
+          this.pendingReminderSlot = null;
+          const h = slot.hour || 9;
+          const m = slot.minute || 0;
+          const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+          const newReminder: ReminderItem = {
+            id: 'rem-' + Date.now(),
+            title: slot.task,
+            timeString: timeStr,
+            targetTime: this.calculateTargetTimestamp(h, m, period),
+            completed: false,
+            createdAt: Date.now(),
+            vibrate: true,
+            soundTone: 'standard',
+          };
+          await saveReminder(newReminder);
+          actions.push({
+            id: 'act-' + Math.random().toString(36).substring(2, 9),
+            type: 'SET_REMINDER',
+            title: `Recordatorio: ${slot.task}`,
+            description: `Programado a las ${timeStr}`,
+            params: { reminder: newReminder },
+            status: 'success',
+            resultMessage: `Recordatorio agendado a las ${timeStr}`,
+            timestamp: Date.now(),
+          });
+          return {
+            spokenResponse: `Listo. He agendado tu recordatorio: "${slot.task}" para las ${timeStr}.`,
+            actions,
+            modelUsed: this.activeModel.name,
+            agentUsed: agent?.name,
+            executionTimeMs: Math.round(performance.now() - startTime),
+            reasoningSteps: [`[Recordatorio] Período ${period} confirmado. Recordatorio registrado.`],
+          };
+        }
+      }
+    }
+
+    // --- 0B. CHECK NEW REMINDER INTENT ("recuérdame...", "recordatorio...") ---
+    const isReminderCmd =
+      cleanCommand.startsWith('recuerdame') ||
+      cleanCommand.includes('recuerdame') ||
+      cleanCommand.startsWith('recordatorio') ||
+      cleanCommand.includes('recordatorio') ||
+      cleanCommand.includes('agenda un recordatorio') ||
+      cleanCommand.includes('pon un recordatorio');
+
+    if (isReminderCmd) {
+      let rawTask = text
+        .replace(/^(?:zanna|asistente)?\s*(?:recu[eé]rdame|recordatorio|pon un recordatorio|agenda un recordatorio)\s*(?:de|que|para)?/i, '')
+        .trim();
+
+      const timeMatch = cleanCommand.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm|de la manana|de la tarde|de la noche)?/i);
+
+      if (timeMatch) {
+        const h = parseInt(timeMatch[1], 10);
+        const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+        const periodStr = (timeMatch[3] || '').toLowerCase();
+        let period: 'AM' | 'PM' | null = null;
+        if (periodStr.includes('am') || periodStr.includes('manana')) period = 'AM';
+        else if (periodStr.includes('pm') || periodStr.includes('tarde') || periodStr.includes('noche')) period = 'PM';
+
+        let cleanTask = rawTask
+          .replace(/a\s+las\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|de la ma[nñ]ana|de la tarde|de la noche)?/i, '')
+          .replace(/\d{1,2}(?::\d{2})?\s*(?:am|pm|de la ma[nñ]ana|de la tarde|de la noche)?/i, '')
+          .replace(/^(?:de|que|para)\s+/i, '')
+          .trim();
+        if (!cleanTask) cleanTask = 'Tarea pendiente';
+
+        if (period) {
+          // If user gives hour + AM/PM: DO NOT ASK! Register immediately!
+          const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+          const newReminder: ReminderItem = {
+            id: 'rem-' + Date.now(),
+            title: cleanTask,
+            timeString: timeStr,
+            targetTime: this.calculateTargetTimestamp(h, m, period),
+            completed: false,
+            createdAt: Date.now(),
+            vibrate: true,
+            soundTone: 'standard',
+          };
+          await saveReminder(newReminder);
+          actions.push({
+            id: 'act-' + Math.random().toString(36).substring(2, 9),
+            type: 'SET_REMINDER',
+            title: `Recordatorio: ${cleanTask}`,
+            description: `Programado para las ${timeStr}`,
+            params: { reminder: newReminder },
+            status: 'success',
+            resultMessage: `Recordatorio agendado a las ${timeStr}`,
+            timestamp: Date.now(),
+          });
+          return {
+            spokenResponse: `He registrado y agendado tu recordatorio: "${cleanTask}" para las ${timeStr}. Sonará con notificación persistente y vibración.`,
+            actions,
+            modelUsed: this.activeModel.name,
+            agentUsed: agent?.name,
+            executionTimeMs: Math.round(performance.now() - startTime),
+            reasoningSteps: [`[Recordatorio Instantáneo] ${cleanTask} agendado para ${timeStr}`],
+          };
+        } else {
+          // Hour specified without AM/PM -> Ask morning or afternoon!
+          this.pendingReminderSlot = {
+            task: cleanTask,
+            hour: h,
+            minute: m,
+            step: 'waiting_for_period',
+          };
+          return {
+            spokenResponse: `¿Prefieres el recordatorio en la mañana o en la tarde?`,
+            actions: [],
+            modelUsed: this.activeModel.name,
+            agentUsed: agent?.name,
+            executionTimeMs: Math.round(performance.now() - startTime),
+            reasoningSteps: [`[Recordatorio Slot] Tarea: "${cleanTask}", hora: ${h}. Preguntando si en la mañana o en la tarde.`],
+          };
+        }
+      } else {
+        // No hour mentioned -> Ask what time!
+        const cleanTask = rawTask.replace(/^(?:de|que|para)\s+/i, '').trim() || 'tu tarea';
+        this.pendingReminderSlot = {
+          task: cleanTask,
+          step: 'waiting_for_time',
+        };
+        return {
+          spokenResponse: `¿A qué hora deseas que te recuerde "${cleanTask}"?`,
+          actions: [],
+          modelUsed: this.activeModel.name,
+          agentUsed: agent?.name,
+          executionTimeMs: Math.round(performance.now() - startTime),
+          reasoningSteps: [`[Recordatorio Slot] Tarea: "${cleanTask}". Preguntando hora de recordatorio.`],
+        };
+      }
+    }
+
     // --- 1. CHECK FOR INTERNET SEARCH INTENT FIRST ---
     const searchResult = this.handleInternetSearchRequest(cleanCommand, text);
     if (searchResult) {
@@ -852,30 +1123,211 @@ class LocalAiService {
       reasoningSteps.push(`[Sistema] Modo No Molestar -> ${enabled ? 'ON' : 'OFF'}`);
     }
 
-    // Phone Call / Llamar: "llama a Juan", "marcar al 555"
+    // Airplane Mode / Modo Avión
+    if (targetText.includes('modo avion') || targetText.includes('avion')) {
+      const turnOff = targetText.includes('desactiva') || targetText.includes('quita') || targetText.includes('apaga');
+      const enabled = turnOff ? false : true;
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'TOGGLE_AIRPLANE_MODE',
+        title: enabled ? 'Activar Modo Avión' : 'Desactivar Modo Avión',
+        description: 'Ajuste de radio y conectividad de red Android',
+        params: { enabled },
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push(`[Sistema] Modo Avión -> ${enabled ? 'ON' : 'OFF'}`);
+    }
+
+    // Sleep Mode / Modo Descanso
+    if (targetText.includes('modo descanso') || targetText.includes('descanso')) {
+      const turnOff = targetText.includes('desactiva') || targetText.includes('quita') || targetText.includes('apaga');
+      const enabled = turnOff ? false : true;
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'SET_SLEEP_MODE',
+        title: enabled ? 'Activar Modo Descanso' : 'Desactivar Modo Descanso',
+        description: 'No Molestar, silencio y pantalla atenuada',
+        params: { enabled },
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push(`[Sistema] Modo Descanso -> ${enabled ? 'ON' : 'OFF'}`);
+    }
+
+    // Silent Mode / Modo Silencio / Vibración / Sonido
+    if (
+      targetText.includes('modo silencio') ||
+      targetText.includes('en silencio') ||
+      targetText.includes('modo vibracion') ||
+      targetText.includes('activar sonido') ||
+      targetText.includes('activa sonido')
+    ) {
+      let mode: 'normal' | 'vibrate' | 'silent' = 'silent';
+      if (targetText.includes('vibracion')) mode = 'vibrate';
+      else if (targetText.includes('activar sonido') || targetText.includes('activa sonido')) mode = 'normal';
+
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'SET_SILENT_MODE',
+        title: `Modo de Audio: ${mode.toUpperCase()}`,
+        description: `Configurando perfil acústico del teléfono`,
+        params: { mode },
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push(`[Sistema] Modo acústico -> ${mode}`);
+    }
+
+    // Notification Sound / Sonido de notificaciones
+    if (
+      targetText.includes('sonido de notificaciones') ||
+      targetText.includes('sonido notificaciones') ||
+      targetText.includes('notificaciones sonido')
+    ) {
+      const turnOff = targetText.includes('desactiva') || targetText.includes('quita') || targetText.includes('apaga') || targetText.includes('silencia');
+      const enabled = turnOff ? false : true;
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'SET_NOTIFICATION_SOUND',
+        title: enabled ? 'Activar Sonido de Notificaciones' : 'Silenciar Notificaciones',
+        description: 'Tono audible para mensajes entrantes',
+        params: { enabled },
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push(`[Sistema] Sonido de notificaciones -> ${enabled ? 'ON' : 'OFF'}`);
+    }
+
+    // Screen Recording / Grabar Pantalla
+    if (
+      targetText.includes('grabar pantalla') ||
+      targetText.includes('graba la pantalla') ||
+      targetText.includes('inicia grabacion') ||
+      targetText.includes('iniciar grabacion de pantalla')
+    ) {
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'RECORD_SCREEN',
+        title: 'Iniciar Grabación de Pantalla',
+        description: 'Captura de audio y video de pantalla vía MediaRecorder',
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push('[Hardware] Iniciar Grabación de Pantalla');
+    }
+
+    if (
+      targetText.includes('deten grabacion') ||
+      targetText.includes('para la grabacion') ||
+      targetText.includes('termina la grabacion') ||
+      targetText.includes('detener grabacion')
+    ) {
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'STOP_RECORD_SCREEN',
+        title: 'Detener Grabación de Pantalla',
+        description: 'Finalizando y descargando archivo de video',
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push('[Hardware] Detener Grabación de Pantalla');
+    }
+
+    // Load contacts for Alias and Name Recognition
+    const allContacts = await getAllContacts();
+
+    // Telegram: "manda un telegram a...", "envía telegram a mamá: ..."
+    if (targetText.includes('telegram')) {
+      let targetQuery = '';
+      let message = 'Hola, te envío este mensaje por Telegram a través de Zanna.';
+
+      const toMatch = text.match(/(?:a|para)\s+([a-zA-Z0-9\sáéíóúÁÉÍÓÚ]+?)(?::|\s+diciendo|\s+que\s+diga|\s+con|\s*$)/i);
+      if (toMatch) targetQuery = toMatch[1].trim();
+
+      const msgMatch = text.match(/(?::|diciendo|que diga|con el mensaje|que)\s+(.+)$/i);
+      if (msgMatch) message = msgMatch[1].trim();
+
+      const resolved = this.resolveContact(targetQuery, allContacts);
+      const contactLabel = resolved?.contact.alias
+        ? `${resolved.contact.alias} (${resolved.contact.name})`
+        : resolved?.contact.name || targetQuery || 'Contacto';
+      const handle = resolved?.contact.telegramHandle || resolved?.contact.phone || targetQuery;
+
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'SEND_TELEGRAM',
+        title: `Enviar Telegram a ${contactLabel}`,
+        description: `"${message}"`,
+        params: { contact: contactLabel, handle, message },
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push(`[Telegram] Contacto reconocido por ${resolved?.matchedBy || 'texto'}: ${contactLabel}`);
+    }
+
+    // Phone Call / Llamar: "llama a Juan", "llama a mi mamá", "marcar al 555"
     if (targetText.includes('llama') || targetText.includes('llamar') || targetText.includes('marca') || targetText.includes('marcar')) {
-      let contact = 'Contacto';
+      let targetQuery = 'Contacto';
       let phone = '555-0199';
 
       const contactMatch = text.match(/(?:a|al)\s+([a-zA-Z0-9\sáéíóúÁÉÍÓÚ]+)/i);
-      if (contactMatch) contact = contactMatch[1].trim();
+      if (contactMatch) targetQuery = contactMatch[1].trim();
 
       const numMatch = text.match(/(\d{3,}[\d\s\-]+)/);
       if (numMatch) {
         phone = numMatch[1].trim();
-        contact = phone;
+        targetQuery = phone;
+      } else {
+        const resolved = this.resolveContact(targetQuery, allContacts);
+        if (resolved) {
+          phone = resolved.contact.phone;
+          targetQuery = resolved.contact.alias ? `${resolved.contact.alias} (${resolved.contact.name})` : resolved.contact.name;
+        }
       }
 
       actions.push({
         id: 'act-' + Math.random().toString(36).substring(2, 9),
         type: 'MAKE_CALL',
-        title: `Llamar a ${contact}`,
-        description: `Iniciando marcador de Android para llamar a ${contact}`,
-        params: { contact, phone },
+        title: `Llamar a ${targetQuery}`,
+        description: `Marcando a ${targetQuery} (${phone})`,
+        params: { contact: targetQuery, phone },
         status: 'pending',
         timestamp: Date.now(),
       });
-      reasoningSteps.push(`[Telefonía] Llamada -> ${contact}`);
+      reasoningSteps.push(`[Telefonía] Llamada -> ${targetQuery} (${phone})`);
+    }
+
+    // SMS: "manda un mensaje a...", "redacta un mensaje a..."
+    if (
+      (targetText.includes('mensaje') || targetText.includes('sms') || targetText.includes('redacta un mensaje')) &&
+      !targetText.includes('telegram') &&
+      !targetText.includes('whatsapp') &&
+      !targetText.includes('responde')
+    ) {
+      let targetQuery = 'Contacto';
+      let message = 'Hola, mensaje dictado con Zanna.';
+
+      const toMatch = text.match(/(?:a|para)\s+([a-zA-Z0-9\sáéíóúÁÉÍÓÚ]+?)(?::|\s+diciendo|\s+que\s+diga|\s+con|\s*$)/i);
+      if (toMatch) targetQuery = toMatch[1].trim();
+
+      const msgMatch = text.match(/(?::|diciendo|que diga|con el mensaje|que)\s+(.+)$/i);
+      if (msgMatch) message = msgMatch[1].trim();
+
+      const resolved = this.resolveContact(targetQuery, allContacts);
+      const phone = resolved ? resolved.contact.phone : '555-0199';
+      const contactLabel = resolved?.contact.alias ? `${resolved.contact.alias} (${resolved.contact.name})` : (resolved?.contact.name || targetQuery);
+
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'SEND_SMS',
+        title: `Enviar SMS a ${contactLabel}`,
+        description: `"${message}"`,
+        params: { contact: contactLabel, phone, message },
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push(`[SMS] Redactando a ${contactLabel} (${phone})`);
     }
 
     // Reply to Incoming Message: "responde el mensaje", "dile que llego a las 5", "responder que si"
@@ -1000,26 +1452,32 @@ class LocalAiService {
       reasoningSteps.push('[Nexus DB] Consulta en base de datos local IndexedDB (100% offline)');
     }
 
-    // WhatsApp / Mensajes
+    // WhatsApp / Mensajes con reconocimiento de Alias y Nombre
     if (targetText.includes('whatsapp') || targetText.includes('guasap') || targetText.includes('wasap')) {
-      let contact = 'Contacto';
-      const toMatch = text.match(/(?:a|para)\s+([a-zA-Z0-9\sáéíóúÁÉÍÓÚ]+?)(?:\s+diciendo|\s+que\s+diga|\s+con|\s*$)/i);
-      if (toMatch) contact = toMatch[1].trim();
+      let targetQuery = 'Contacto';
+      const toMatch = text.match(/(?:a|para)\s+([a-zA-Z0-9\sáéíóúÁÉÍÓÚ]+?)(?::|\s+diciendo|\s+que\s+diga|\s+con|\s*$)/i);
+      if (toMatch) targetQuery = toMatch[1].trim();
 
-      let message = 'Hola, mensaje enviado por comando de voz con VozDroid AI.';
-      const msgMatch = text.match(/(?:diciendo|que diga|con el mensaje)\s+(.+)$/i);
+      let message = 'Hola, mensaje enviado por comando de voz con Zanna.';
+      const msgMatch = text.match(/(?::|diciendo|que diga|con el mensaje|que)\s+(.+)$/i);
       if (msgMatch) message = msgMatch[1].trim();
+
+      const resolved = this.resolveContact(targetQuery, allContacts);
+      const phone = resolved ? resolved.contact.phone : '';
+      const contactLabel = resolved?.contact.alias
+        ? `${resolved.contact.alias} (${resolved.contact.name})`
+        : resolved?.contact.name || targetQuery;
 
       actions.push({
         id: 'act-' + Math.random().toString(36).substring(2, 9),
         type: 'SEND_WHATSAPP',
-        title: `Enviar WhatsApp a ${contact}`,
+        title: `Enviar WhatsApp a ${contactLabel}`,
         description: `"${message}"`,
-        params: { contact, message },
+        params: { contact: contactLabel, phone, message },
         status: 'pending',
         timestamp: Date.now(),
       });
-      reasoningSteps.push(`[Mensajería] WhatsApp -> ${contact}`);
+      reasoningSteps.push(`[Mensajería] WhatsApp -> ${contactLabel} (${phone})`);
     }
 
     // Alarms / Alarmas: "pon alarma a las 7:30", "despertador"
@@ -1233,6 +1691,90 @@ class LocalAiService {
       reasoningSteps.push('[Diagnóstico] Análisis del sistema');
     }
 
+    // Music & Media Controls (Spotify, YouTube Music, Universal Player):
+    // "pausa la musica", "siguiente cancion", "cancion anterior", "reproduce musica", "abre spotify"
+    const isMediaCommand =
+      targetText.includes('musica') ||
+      targetText.includes('cancion') ||
+      targetText.includes('canciones') ||
+      targetText.includes('pista') ||
+      targetText.includes('spotify') ||
+      targetText.includes('reproductor') ||
+      (targetText.includes('pausa') && !targetText.includes('temporizador')) ||
+      targetText.includes('siguiente pista') ||
+      targetText.includes('pista anterior');
+
+    if (isMediaCommand) {
+      if (
+        targetText.includes('abre spotify') ||
+        targetText.includes('abrir spotify') ||
+        targetText.includes('abre musica') ||
+        targetText.includes('abrir musica') ||
+        targetText.includes('reproductor')
+      ) {
+        const appTarget = targetText.includes('spotify') ? 'spotify' : 'default';
+        actions.push({
+          id: 'act-' + Math.random().toString(36).substring(2, 9),
+          type: 'OPEN_MUSIC',
+          title: `Abrir Reproductor (${appTarget})`,
+          description: `Lanzando aplicación de música en Android`,
+          params: { app: appTarget },
+          status: 'pending',
+          timestamp: Date.now(),
+        });
+        reasoningSteps.push(`[Multimedia] Lanzando reproductor musical -> ${appTarget}`);
+      } else {
+        let mediaAction: 'play' | 'pause' | 'play_pause' | 'next' | 'previous' = 'play_pause';
+        let mediaTitle = 'Control Multimedia';
+
+        if (
+          targetText.includes('siguiente') ||
+          targetText.includes('adelanta') ||
+          targetText.includes('proxima') ||
+          targetText.includes('pasa')
+        ) {
+          mediaAction = 'next';
+          mediaTitle = 'Siguiente Canción';
+        } else if (
+          targetText.includes('anterior') ||
+          targetText.includes('atras') ||
+          targetText.includes('retrocede') ||
+          targetText.includes('previa')
+        ) {
+          mediaAction = 'previous';
+          mediaTitle = 'Canción Anterior';
+        } else if (
+          targetText.includes('pausa') ||
+          targetText.includes('deten') ||
+          targetText.includes('para') ||
+          targetText.includes('silencia')
+        ) {
+          mediaAction = 'pause';
+          mediaTitle = 'Pausar Música';
+        } else if (
+          targetText.includes('play') ||
+          targetText.includes('reproduce') ||
+          targetText.includes('continua') ||
+          targetText.includes('reanuda') ||
+          targetText.includes('pon musica')
+        ) {
+          mediaAction = 'play';
+          mediaTitle = 'Reanudar Música';
+        }
+
+        actions.push({
+          id: 'act-' + Math.random().toString(36).substring(2, 9),
+          type: 'MEDIA_CONTROL',
+          title: mediaTitle,
+          description: `Acción multimedia enviada a Android: ${mediaAction}`,
+          params: { action: mediaAction },
+          status: 'pending',
+          timestamp: Date.now(),
+        });
+        reasoningSteps.push(`[Multimedia] Comando nativo Android -> ${mediaAction}`);
+      }
+    }
+
     // --- SPOKEN RESPONSE GENERATION ---
     let spokenResponse = '';
     const agentName = agent?.name || 'ZANNA';
@@ -1321,8 +1863,38 @@ class LocalAiService {
           case 'SEND_EMAIL':
             parts.push(act.title ? `${act.title}.` : 'Correo preparado.');
             break;
+          case 'SET_REMINDER':
+            parts.push(act.resultMessage || `Recordatorio agendado.`);
+            break;
+          case 'SEND_TELEGRAM':
+            parts.push(`Mensaje de Telegram preparado para ${act.params?.contact}.`);
+            break;
+          case 'TOGGLE_AIRPLANE_MODE':
+            parts.push(act.params?.enabled ? 'Modo avión activado.' : 'Modo avión desactivado.');
+            break;
+          case 'SET_SLEEP_MODE':
+            parts.push(act.params?.enabled ? 'Modo descanso activado.' : 'Modo descanso desactivado.');
+            break;
+          case 'SET_SILENT_MODE':
+            parts.push(`Perfil de sonido fijado en ${act.params?.mode}.`);
+            break;
+          case 'SET_NOTIFICATION_SOUND':
+            parts.push(act.params?.enabled ? 'Sonido de notificaciones activado.' : 'Notificaciones silenciadas.');
+            break;
+          case 'RECORD_SCREEN':
+            parts.push('Iniciando grabación de pantalla con video y audio.');
+            break;
+          case 'STOP_RECORD_SCREEN':
+            parts.push('Grabación de pantalla finalizada y guardada.');
+            break;
           case 'AUTO_REFACTOR':
             parts.push('Módulo de auto-refacción ejecutado. Arquitectura optimizada y snapshot creado.');
+            break;
+          case 'MEDIA_CONTROL':
+            parts.push(act.title ? `${act.title} ejecutada.` : 'Control multimedia enviado a Android.');
+            break;
+          case 'OPEN_MUSIC':
+            parts.push('Abriendo aplicación de música en tu teléfono.');
             break;
           default:
             parts.push(act.resultMessage || `Acción ${act.title} ejecutada.`);
@@ -1330,24 +1902,10 @@ class LocalAiService {
       }
       spokenResponse = hasWakeWord ? `${configuredWakeWord}: ${parts.join(' ')}` : parts.join(' ');
     } else {
-      // Conversational responses
-      const effectiveName = hasWakeWord ? configuredWakeWord : agentName;
-      if (cleanText.includes('hola') || cleanText.includes('buenos dias') || cleanText.includes('buenas tardes')) {
-        spokenResponse = `Hola, soy ${effectiveName}. Tu asistente de control por voz para Android. ¿Qué orden deseas ejecutar?`;
-      } else if (cleanText.includes('quien eres') || cleanText.includes('que puedes hacer')) {
-        spokenResponse = `Soy ${effectiveName}. Puedo activar la linterna, abrir la cámara, regular el volumen, alarmas, temporizadores, consultar tu base de datos local y trabajar 100% sin internet.`;
-      } else if (cleanText.includes('gracias')) {
-        spokenResponse = `A tu servicio siempre. Puedes pedirme "${effectiveName}, activa la linterna", "${effectiveName}, activa la cámara" o consultar la base de datos local.`;
-      } else if (cleanText.includes('hora')) {
-        const now = new Date();
-        spokenResponse = `${effectiveName}: Son las ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`;
-      } else if (cleanText.includes('fecha')) {
-        const now = new Date();
-        spokenResponse = `${effectiveName}: Hoy es ${now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.`;
-      } else {
-        spokenResponse = `${effectiveName}: Comando recibido: "${text}". Puedes decir "${effectiveName}, activa la linterna", "${effectiveName}, activa la cámara", "cuánto es 50 por 25" o consultar la base de datos local.`;
-      }
-      reasoningSteps.push(`[Conversación] Respuesta de ${effectiveName}`);
+      // Reasoned Jarvis-style conversational response with Trained Knowledge & Background Search
+      const effectiveName = hasWakeWord ? configuredWakeWord : (agent?.name || 'ZANNA');
+      spokenResponse = await this.generateReasonedJarvisResponse(cleanText, text, effectiveName);
+      reasoningSteps.push(`[Conversación Inteligente JARVIS] Respuesta razonada de ${effectiveName}`);
     }
 
     const executionTimeMs = Math.round(performance.now() - startTime);
@@ -1360,6 +1918,132 @@ class LocalAiService {
       executionTimeMs,
       reasoningSteps,
     };
+  }
+
+  // --- REASONED JARVIS CONVERSATIONAL ENGINE (TRAINED KNOWLEDGE, FACTUAL REASONING & BACKGROUND SEARCH) ---
+  private async generateReasonedJarvisResponse(cleanText: string, rawText: string, effectiveName: string): Promise<string> {
+    // 0A. Check Trained Sessions first (User Fine-Tuning & Training Sessions)
+    try {
+      const trainingSessions = await getAllTrainingSessions();
+      for (const sess of trainingSessions) {
+        if (sess.status === 'applied' || sess.status === 'completed') {
+          for (const sample of sess.samples) {
+            const cleanSamplePrompt = this.normalize(sample.prompt);
+            if (
+              cleanText.includes(cleanSamplePrompt) ||
+              cleanSamplePrompt.includes(cleanText) ||
+              (cleanSamplePrompt.length > 8 && cleanText.includes(cleanSamplePrompt.slice(0, 15)))
+            ) {
+              return sample.idealResponse;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 0B. Check Local Knowledge Base Items (Learned Memory)
+    try {
+      const knowledgeItems = await getAllKnowledge();
+      for (const item of knowledgeItems) {
+        const cleanTopic = this.normalize(item.topic);
+        if (cleanText.includes(cleanTopic) || cleanTopic.includes(cleanText)) {
+          return item.content;
+        }
+      }
+    } catch (_) {}
+
+    // 1. Greetings & Status
+    if (
+      cleanText.includes('hola') ||
+      cleanText.includes('buenos dias') ||
+      cleanText.includes('buenas tardes') ||
+      cleanText.includes('buenas noches') ||
+      cleanText.includes('que tal')
+    ) {
+      const greetings = [
+        `Hola. Aquí ${effectiveName}, sistemas al cien por ciento y lista para lo que requieras.`,
+        `Buen día. Todos los subsistemas locales están activos y a tu disposición.`,
+        `Saludos. Soy ${effectiveName}, tu asistente personal. ¿En qué puedo colaborar contigo hoy?`,
+      ];
+      return greetings[Math.floor(Math.random() * greetings.length)];
+    }
+
+    // 2. Identity & JARVIS Inspiration
+    if (
+      cleanText.includes('quien eres') ||
+      cleanText.includes('que eres') ||
+      cleanText.includes('cual es tu proposito') ||
+      cleanText.includes('jarvis')
+    ) {
+      return `Soy ${effectiveName}, tu asistente multimodal para Android inspirada en la arquitectura de JARVIS. Administro el hardware, llamadas, mensajes por Telegram y WhatsApp, recordatorios y analizo estadísticas de forma local. Si requieres datos en línea los busco en segundo plano, y si no sé una respuesta te lo indico con total honestidad o puedo aprenderla mediante una sesión de entrenamiento.`;
+    }
+
+    // 3. How are you / Status
+    if (cleanText.includes('como estas') || cleanText.includes('como te encuentras') || cleanText.includes('estado')) {
+      return `Operando de forma óptima, con procesamiento neuronal en tiempo real y memoria local sincronizada. ¿Cómo puedo asistirte en este momento?`;
+    }
+
+    // 4. Gratitude & Courtesy
+    if (cleanText.includes('gracias') || cleanText.includes('muchas gracias') || cleanText.includes('te lo agradezco')) {
+      return `Es un placer servirte. Estoy siempre aquí para coordinar tus tareas y mantener tu dispositivo en orden.`;
+    }
+
+    // 5. Time & Date
+    if (cleanText.includes('que hora es') || cleanText.includes('hora actual') || cleanText.includes('dime la hora')) {
+      const now = new Date();
+      return `Son las ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`;
+    }
+    if (cleanText.includes('que dia es') || cleanText.includes('fecha') || cleanText.includes('que fecha es')) {
+      const now = new Date();
+      return `Hoy es ${now.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.`;
+    }
+
+    // 6. Capability overview
+    if (cleanText.includes('que puedes hacer') || cleanText.includes('ayuda') || cleanText.includes('funciones')) {
+      return `Tengo control total sobre tu Android: linterna, volumen, bluetooth, modo avión, descanso, grabar pantalla, control de música universal, llamadas, SMS, Telegram, WhatsApp y agenda de recordatorios inteligentes. Además resuelvo matemáticas, redacto código y aprendo nuevas habilidades en el apartado de entrenamiento.`;
+    }
+
+    // 7. Questions / Explanations / Search in Background
+    const isQuestion =
+      cleanText.startsWith('que es') ||
+      cleanText.startsWith('quien es') ||
+      cleanText.startsWith('donde queda') ||
+      cleanText.startsWith('por que') ||
+      cleanText.startsWith('como se') ||
+      cleanText.includes('cual es la capital') ||
+      cleanText.includes('quien invento') ||
+      cleanText.includes('quien descubrio');
+
+    if (isQuestion) {
+      // If online, attempt a quick background search via DuckDuckGo / fetch
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          const query = encodeURIComponent(cleanText);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2200);
+          const res = await fetch(`https://api.duckduckgo.com/?q=${query}&format=json&no_html=1&skip_disambig=1`, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.AbstractText) {
+              return `Según la búsqueda en segundo plano: ${data.AbstractText}`;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // If offline or search yielded nothing:
+      return `No dispongo de esa información en mi almacenamiento local offline en este momento. Puedo buscarla en internet en segundo plano cuando tengamos conexión o puedes enseñármela directamente en el apartado de entrenamiento de IA local.`;
+    }
+
+    if (cleanText.includes('chiste') || cleanText.includes('cuentame algo')) {
+      return `¿Por qué los procesadores nunca tienen calor? Porque tienen muchos ventiladores a su alrededor. Aunque aquí en tu Android, mantengo el rendimiento térmico al mínimo consumo.`;
+    }
+
+    // 8. General Thoughtful Fallback
+    return `Entendido. Te escucho atentamente. Puedes conversar libremente conmigo o indicarme cualquier orden del sistema cuando la requieras.`;
   }
 }
 

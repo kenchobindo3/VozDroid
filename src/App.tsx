@@ -13,6 +13,7 @@ import {
   VoiceGender,
   ListeningMode,
   IncomingMessage,
+  ReminderItem,
 } from './types';
 import {
   getAllMessages,
@@ -28,7 +29,9 @@ import {
   deleteCustomModel,
   getCustomAgents,
   saveCustomAgent,
-  deleteCustomAgent
+  deleteCustomAgent,
+  getAllReminders,
+  saveReminder,
 } from './services/db';
 import { hardwareService } from './services/hardware';
 import { voiceService } from './services/voice';
@@ -40,6 +43,7 @@ import { Header } from './components/Header';
 import { VoiceOrb } from './components/VoiceOrb';
 import { AndroidPhoneCard } from './components/AndroidPhoneCard';
 import { ChatHistory } from './components/ChatHistory';
+import { MediaControlCard } from './components/MediaControlCard';
 import { LocalAiModelModal } from './components/LocalAiModelModal';
 import { PermissionsModal } from './components/PermissionsModal';
 import { ActionLogsModal } from './components/ActionLogsModal';
@@ -50,6 +54,8 @@ import { DataManagerModal } from './components/DataManagerModal';
 import { AiObservationSpaceModal } from './components/AiObservationSpaceModal';
 import { FloatingNotificationBubble } from './components/FloatingNotificationBubble';
 import { TalkBackHud } from './components/TalkBackHud';
+import { ContactsModal } from './components/ContactsModal';
+import { RemindersManagerModal } from './components/RemindersManagerModal';
 import { screenVisionTalkbackService } from './services/screenVisionTalkback';
 import {
   MessageSquare,
@@ -73,6 +79,7 @@ import {
   Eye,
   Brain,
   MessageCircle,
+  Bell,
 } from 'lucide-react';
 
 export default function App() {
@@ -180,6 +187,9 @@ export default function App() {
   const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false);
   const [isDataManagerModalOpen, setIsDataManagerModalOpen] = useState(false);
   const [isObservationModalOpen, setIsObservationModalOpen] = useState(false);
+  const [isContactsModalOpen, setIsContactsModalOpen] = useState(false);
+  const [isRemindersModalOpen, setIsRemindersModalOpen] = useState(false);
+  const [activeAlertReminder, setActiveAlertReminder] = useState<ReminderItem | null>(null);
   const [incomingAlertMsg, setIncomingAlertMsg] = useState<IncomingMessage | null>(null);
 
   // References to avoid stale closures in callbacks
@@ -263,16 +273,22 @@ export default function App() {
             batteryLevel: batteryInfo.level,
             isCharging: batteryInfo.charging,
           }));
-          setPermissions((prev) => ({ ...prev, battery: 'granted' }));
         }
 
-        // Check Permissions
-        if ('Notification' in window) {
-          setPermissions((prev) => ({
-            ...prev,
-            notifications: Notification.permission === 'granted' ? 'granted' : 'prompt',
-          }));
-        }
+        // Auto-approve system permissions except notifications and GPS (user requirement)
+        setPermissions((prev) => ({
+          ...prev,
+          microphone: 'granted',
+          screenVision: 'granted',
+          accessibilityTalkBack: 'granted',
+          torch: 'granted',
+          wakeLock: 'granted',
+          vibration: 'granted',
+          battery: 'granted',
+          clipboard: 'granted',
+          notifications: 'prompt', // Opt-in
+          geolocation: 'prompt',   // Opt-in
+        }));
 
         // Permissions status check (do not block UI with modal)
         localStorage.setItem('vozdroid_permissions_requested_v1', 'true');
@@ -335,9 +351,39 @@ export default function App() {
     }
   }, [settings.listeningMode]);
 
-  // --- BACKGROUND TIMERS TICKER ---
+  // --- BACKGROUND TIMERS & REMINDERS TICKER ---
   useEffect(() => {
     const timerInterval = setInterval(() => {
+      // Check reminders scheduled time
+      getAllReminders().then((allRems) => {
+        const now = Date.now();
+        for (const rem of allRems) {
+          if (!rem.completed && rem.targetTime && rem.targetTime <= now && !rem.alarmTriggered) {
+            rem.alarmTriggered = true;
+            saveReminder(rem);
+            setActiveAlertReminder(rem);
+            hardwareService.playReminderAlarm(rem.soundTone || 'standard');
+            hardwareService.vibrate([300, 150, 300, 150, 600]);
+
+            if (settingsRef.current.autoSpeakResponse) {
+              voiceService.speak(`Recordatorio de Zanna: ${rem.title}. Programado para las ${rem.timeString}.`, {
+                rate: settingsRef.current.speechRate,
+                pitch: settingsRef.current.speechPitch,
+                gender: settingsRef.current.voiceGender,
+              });
+            }
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(`ZANNA: ${rem.title}`, {
+                body: `Recordatorio programado a las ${rem.timeString}.`,
+                icon: '/pwa-192x192.png',
+                requireInteraction: true,
+              });
+            }
+          }
+        }
+      }).catch(() => {});
+
       setSystemState((prev) => {
         if (!prev.activeTimers || prev.activeTimers.length === 0) return prev;
 
@@ -419,6 +465,25 @@ export default function App() {
             hardwareService.setVolume(newVol);
             act.status = 'success';
             act.resultMessage = `Volumen de Android fijado al ${newVol}%`;
+            break;
+          }
+          case 'MEDIA_CONTROL': {
+            const action = act.params?.action || 'play_pause';
+            const res = await hardwareService.controlMedia(action);
+            setSystemState((prev) => ({
+              ...prev,
+              isMusicActive: res.isMusicActive,
+              currentMediaTitle: res.message,
+            }));
+            act.status = 'success';
+            act.resultMessage = res.message;
+            break;
+          }
+          case 'OPEN_MUSIC': {
+            const app = act.params?.app || 'default';
+            const res = await hardwareService.openMusicPlayer(app);
+            act.status = 'success';
+            act.resultMessage = res.message;
             break;
           }
           case 'TOGGLE_DND': {
@@ -617,6 +682,65 @@ export default function App() {
             act.status = 'success';
             act.resultMessage = 'Abriendo motor de gestión de bases de datos.';
             setIsDataManagerModalOpen(true);
+            break;
+          }
+          case 'TOGGLE_AIRPLANE_MODE': {
+            const res = await hardwareService.toggleAirplaneMode(act.params?.enabled);
+            setSystemState((prev) => ({ ...prev, airplaneMode: res.state }));
+            act.status = 'success';
+            act.resultMessage = res.message;
+            break;
+          }
+          case 'SET_SLEEP_MODE': {
+            const enabled = !!act.params?.enabled;
+            const res = await hardwareService.setSleepMode(enabled);
+            setSystemState((prev) => ({ ...prev, sleepMode: enabled, doNotDisturb: enabled }));
+            act.status = 'success';
+            act.resultMessage = res.message;
+            break;
+          }
+          case 'SET_SILENT_MODE': {
+            const mode = act.params?.mode || 'silent';
+            const res = await hardwareService.setSilentMode(mode);
+            setSystemState((prev) => ({ ...prev, silentMode: mode }));
+            act.status = 'success';
+            act.resultMessage = res.message;
+            break;
+          }
+          case 'SET_NOTIFICATION_SOUND': {
+            const enabled = !!act.params?.enabled;
+            const res = hardwareService.setNotificationSound(enabled);
+            setSystemState((prev) => ({ ...prev, notificationSoundEnabled: enabled }));
+            act.status = 'success';
+            act.resultMessage = res.message;
+            break;
+          }
+          case 'RECORD_SCREEN': {
+            const res = await hardwareService.startScreenRecording();
+            setSystemState((prev) => ({ ...prev, isRecordingScreen: hardwareService.isRecordingScreenActive() }));
+            act.status = res.success ? 'success' : 'failed';
+            act.resultMessage = res.message;
+            break;
+          }
+          case 'STOP_RECORD_SCREEN': {
+            const res = await hardwareService.stopScreenRecording();
+            setSystemState((prev) => ({ ...prev, isRecordingScreen: false }));
+            act.status = res.success ? 'success' : 'failed';
+            act.resultMessage = res.message;
+            break;
+          }
+          case 'SEND_TELEGRAM': {
+            const res = await hardwareService.triggerTelegram(act.params?.handle, act.params?.message);
+            act.status = 'success';
+            act.resultMessage = res.message;
+            break;
+          }
+          case 'SET_REMINDER': {
+            if (act.params?.reminder) {
+              await saveReminder(act.params.reminder);
+            }
+            act.status = 'success';
+            act.resultMessage = act.resultMessage || 'Recordatorio registrado y agendado';
             break;
           }
           default:
@@ -848,6 +972,32 @@ export default function App() {
       return () => clearInterval(watchdog);
     }
   }, [settings.listeningMode, assistantState, playbackState, startListeningLoop]);
+
+  // --- AUTOMATIC BACKGROUND ACTIVE LISTENING UPON LEAVING FOREGROUND ---
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden') {
+        // App left foreground (user switched apps or minimized)
+        hardwareService.startBackgroundAudioKeepAlive();
+        await hardwareService.requestWakeLock();
+        voiceService.setBackgroundListening(true);
+        if (settingsRef.current.listeningMode === 'always_on_gemini') {
+          startListeningLoop();
+        }
+      } else {
+        // App returned to foreground
+        hardwareService.stopBackgroundAudioKeepAlive();
+        if (settingsRef.current.listeningMode === 'always_on_gemini') {
+          startListeningLoop();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [startListeningLoop]);
 
   const stopListeningLoop = useCallback(() => {
     // If the user spoke and tapped to stop, execute the captured speech immediately!
@@ -1146,21 +1296,20 @@ export default function App() {
   };
 
   const handleRequestAllPermissions = async () => {
+    // Approve all system permissions EXCEPT notifications and GPS as requested
     await handleRequestPermission('microphone');
     await handleRequestPermission('screenVision');
     await handleRequestPermission('accessibilityTalkBack');
     await handleRequestPermission('torch');
-    await handleRequestPermission('notifications');
     await handleRequestPermission('wakeLock');
     await handleRequestPermission('vibration');
     await handleRequestPermission('battery');
-    await handleRequestPermission('geolocation');
     await handleRequestPermission('clipboard');
 
     localStorage.setItem('vozdroid_permissions_requested_v1', 'true');
     setIsFirstLaunch(false);
     hardwareService.playSuccessChime();
-    voiceService.speak('Permisos de Android, visión de pantalla y accesibilidad TalkBack concedidos exitosamente.', {
+    voiceService.speak('Permisos del sistema concedidos. Notificaciones y GPS se mantienen opcionales según tu preferencia.', {
       gender: settings.voiceGender,
       rate: settings.speechRate,
     });
@@ -1635,11 +1784,19 @@ export default function App() {
         </div>
 
         {/* PRIMARY WINDOW: The Live Conversation Text Window (Always Main & Visible) */}
-        <section className="w-full max-w-3xl mx-auto flex-1 flex flex-col">
+        <section className="w-full max-w-3xl mx-auto flex-1 flex flex-col space-y-4">
+          {/* Universal Media & Music Control Deck */}
+          <MediaControlCard onNotify={(msg) => hardwareService.vibrate([70])} />
+
           <ChatHistory
             messages={messages}
             onPlayVoice={handleReplayVoice}
             onClearChat={handleClearChat}
+            onSendMessage={handleProcessInput}
+            onToggleVoice={handleToggleListening}
+            isListening={assistantState === 'listening'}
+            debugMode={systemState.debugModeEnabled || false}
+            onToggleDebug={() => setSystemState((prev) => ({ ...prev, debugModeEnabled: !prev.debugModeEnabled }))}
           />
         </section>
 

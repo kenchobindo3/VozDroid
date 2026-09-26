@@ -148,7 +148,7 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
               <span>Conceder Todos los Permisos del Sistema</span>
             </span>
             <span className="text-slate-300 text-[11px]">
-              Autoriza micrófono, vista de pantalla, accesibilidad y hardware en un solo toque.
+              Autoriza micrófono, vista de pantalla, accesibilidad y hardware (Notificación y GPS se mantienen opcionales).
             </span>
           </div>
           <button

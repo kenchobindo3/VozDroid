@@ -21,6 +21,8 @@ import {
   Database,
   MessageSquare,
   Brain,
+  Bell,
+  Clock,
 } from 'lucide-react';
 import { LocalModelConfig, AndroidSystemState, AIAgent } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -37,6 +39,8 @@ interface HeaderProps {
   onOpenSkillsModal?: () => void;
   onOpenDataManagerModal?: () => void;
   onOpenObservationModal?: () => void;
+  onOpenContactsModal?: () => void;
+  onOpenRemindersModal?: () => void;
   onToggleWakeLock: () => void;
   onToggleFloatingBubble: () => void;
   isTalkBackActive?: boolean;
@@ -56,6 +60,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSkillsModal,
   onOpenDataManagerModal,
   onOpenObservationModal,
+  onOpenContactsModal,
+  onOpenRemindersModal,
   onToggleWakeLock,
   onToggleFloatingBubble,
   isTalkBackActive = false,
@@ -312,6 +318,44 @@ export const Header: React.FC<HeaderProps> = ({
                         <div>
                           <span className="font-bold block text-slate-200 group-hover:text-indigo-300">Espacio de Observación IA</span>
                           <span className="text-[11px] text-slate-400">Telemetría y Auto-Refacción</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 transition-colors" />
+                    </button>
+                  )}
+
+                  {/* Recordatorios Inteligentes */}
+                  {onOpenRemindersModal && (
+                    <button
+                      onClick={() => handleAction(onOpenRemindersModal)}
+                      className="flex w-full items-center justify-between rounded-2xl p-2.5 text-left text-xs font-medium text-slate-200 hover:bg-slate-900 hover:text-amber-300 transition group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-950/80 border border-amber-800/60 text-amber-400 shadow-sm group-hover:scale-105 transition-transform">
+                          <Bell className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-bold block text-slate-200 group-hover:text-amber-300">Agenda de Recordatorios</span>
+                          <span className="text-[11px] text-slate-400">Alarmas persistentes, vibración e historial</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 transition-colors" />
+                    </button>
+                  )}
+
+                  {/* Contactos & Telegram */}
+                  {onOpenContactsModal && (
+                    <button
+                      onClick={() => handleAction(onOpenContactsModal)}
+                      className="flex w-full items-center justify-between rounded-2xl p-2.5 text-left text-xs font-medium text-slate-200 hover:bg-slate-900 hover:text-cyan-300 transition group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-cyan-950/80 border border-cyan-800/60 text-cyan-400 shadow-sm group-hover:scale-105 transition-transform">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-bold block text-slate-200 group-hover:text-cyan-300">Contactos, Alias & Telegram</span>
+                          <span className="text-[11px] text-slate-400">Reconocimiento por alias, llamadas, mensajes</span>
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 transition-colors" />

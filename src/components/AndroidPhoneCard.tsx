@@ -20,7 +20,14 @@ import {
   Activity,
   Trash2,
   Eye,
-  Hand
+  Hand,
+  Plane,
+  Bluetooth,
+  Moon,
+  Video,
+  VideoOff,
+  Users,
+  Send,
 } from 'lucide-react';
 import { AndroidSystemState, ActiveTimer } from '../types';
 
@@ -33,6 +40,13 @@ interface AndroidPhoneCardProps {
   onTriggerAction: (command: string) => void;
   onDeleteTimer: (id: string) => void;
   onDeleteNote: (index: number) => void;
+  onToggleAirplane?: () => void;
+  onToggleBluetooth?: () => void;
+  onToggleSleepMode?: () => void;
+  onToggleScreenRecording?: () => void;
+  onToggleNotificationSound?: () => void;
+  onOpenRemindersModal?: () => void;
+  onOpenContactsModal?: () => void;
 }
 
 export const AndroidPhoneCard: React.FC<AndroidPhoneCardProps> = ({
@@ -44,6 +58,13 @@ export const AndroidPhoneCard: React.FC<AndroidPhoneCardProps> = ({
   onTriggerAction,
   onDeleteTimer,
   onDeleteNote,
+  onToggleAirplane,
+  onToggleBluetooth,
+  onToggleSleepMode,
+  onToggleScreenRecording,
+  onToggleNotificationSound,
+  onOpenRemindersModal,
+  onOpenContactsModal,
 }) => {
   return (
     <div className="flex flex-col gap-5 rounded-3xl border border-slate-800/90 bg-slate-900/70 p-5 sm:p-6 backdrop-blur-xl shadow-2xl text-left">
@@ -160,6 +181,117 @@ export const AndroidPhoneCard: React.FC<AndroidPhoneCardProps> = ({
         </button>
       </div>
 
+      {/* Row 2: Advanced Controls (Airplane Mode, Bluetooth, Sleep Mode, Screen Recording) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        {/* Airplane Mode Toggle */}
+        <button
+          onClick={() => onToggleAirplane ? onToggleAirplane() : onTriggerAction('Activa modo avión')}
+          className={`flex flex-col items-start justify-between rounded-3xl p-4 border transition-all duration-200 active:scale-95 text-left group ${
+            systemState.airplaneMode
+              ? 'border-sky-500/80 bg-gradient-to-br from-sky-950/60 to-slate-900 text-sky-200 shadow-lg shadow-sky-500/20 ring-1 ring-sky-400/30'
+              : 'border-slate-800 bg-slate-950/60 text-slate-300 hover:border-slate-700 hover:bg-slate-900/60'
+          }`}
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-all shadow-md ${
+              systemState.airplaneMode
+                ? 'bg-sky-500 text-slate-950 shadow-sky-500/40'
+                : 'bg-slate-900 border border-slate-700 text-slate-300 group-hover:text-sky-400'
+            }`}>
+              <Plane className="w-5 h-5" />
+            </div>
+            <span className={`text-[11px] font-bold ${systemState.airplaneMode ? 'text-sky-300' : 'text-slate-500'}`}>
+              {systemState.airplaneMode ? 'ON' : 'OFF'}
+            </span>
+          </div>
+          <div className="mt-3">
+            <span className="text-xs font-bold block text-white">Modo Avión</span>
+            <span className="text-[11px] text-slate-400">Desconectar redes</span>
+          </div>
+        </button>
+
+        {/* Bluetooth Toggle */}
+        <button
+          onClick={() => onToggleBluetooth ? onToggleBluetooth() : onTriggerAction('Activa bluetooth')}
+          className={`flex flex-col items-start justify-between rounded-3xl p-4 border transition-all duration-200 active:scale-95 text-left group ${
+            systemState.bluetoothEnabled
+              ? 'border-blue-500/80 bg-gradient-to-br from-blue-950/60 to-slate-900 text-blue-200 shadow-lg shadow-blue-500/20 ring-1 ring-blue-400/30'
+              : 'border-slate-800 bg-slate-950/60 text-slate-300 hover:border-slate-700 hover:bg-slate-900/60'
+          }`}
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-all shadow-md ${
+              systemState.bluetoothEnabled
+                ? 'bg-blue-500 text-white shadow-blue-500/40'
+                : 'bg-slate-900 border border-slate-700 text-slate-300 group-hover:text-blue-400'
+            }`}>
+              <Bluetooth className="w-5 h-5" />
+            </div>
+            <span className={`text-[11px] font-bold ${systemState.bluetoothEnabled ? 'text-blue-300' : 'text-slate-500'}`}>
+              {systemState.bluetoothEnabled ? 'ON' : 'OFF'}
+            </span>
+          </div>
+          <div className="mt-3">
+            <span className="text-xs font-bold block text-white">Bluetooth</span>
+            <span className="text-[11px] text-slate-400">Audio y dispositivos</span>
+          </div>
+        </button>
+
+        {/* Sleep Mode Toggle */}
+        <button
+          onClick={() => onToggleSleepMode ? onToggleSleepMode() : onTriggerAction('Activa modo descanso')}
+          className={`flex flex-col items-start justify-between rounded-3xl p-4 border transition-all duration-200 active:scale-95 text-left group ${
+            systemState.sleepMode
+              ? 'border-indigo-500/80 bg-gradient-to-br from-indigo-950/60 to-slate-900 text-indigo-200 shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-400/30'
+              : 'border-slate-800 bg-slate-950/60 text-slate-300 hover:border-slate-700 hover:bg-slate-900/60'
+          }`}
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-all shadow-md ${
+              systemState.sleepMode
+                ? 'bg-indigo-500 text-white shadow-indigo-500/40'
+                : 'bg-slate-900 border border-slate-700 text-slate-300 group-hover:text-indigo-400'
+            }`}>
+              <Moon className="w-5 h-5" />
+            </div>
+            <span className={`text-[11px] font-bold ${systemState.sleepMode ? 'text-indigo-300' : 'text-slate-500'}`}>
+              {systemState.sleepMode ? 'Activo' : 'Inactivo'}
+            </span>
+          </div>
+          <div className="mt-3">
+            <span className="text-xs font-bold block text-white">Modo Descanso</span>
+            <span className="text-[11px] text-slate-400">Silencio y reposo</span>
+          </div>
+        </button>
+
+        {/* Screen Recording Toggle */}
+        <button
+          onClick={() => onToggleScreenRecording ? onToggleScreenRecording() : onTriggerAction(systemState.isRecordingScreen ? 'Detener grabacion de pantalla' : 'Grabar pantalla')}
+          className={`flex flex-col items-start justify-between rounded-3xl p-4 border transition-all duration-200 active:scale-95 text-left group ${
+            systemState.isRecordingScreen
+              ? 'border-rose-500/80 bg-gradient-to-br from-rose-950/60 to-slate-900 text-rose-200 shadow-lg shadow-rose-500/20 ring-1 ring-rose-400/30 animate-pulse'
+              : 'border-slate-800 bg-slate-950/60 text-slate-300 hover:border-slate-700 hover:bg-slate-900/60'
+          }`}
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-all shadow-md ${
+              systemState.isRecordingScreen
+                ? 'bg-rose-500 text-white shadow-rose-500/40'
+                : 'bg-slate-900 border border-slate-700 text-slate-300 group-hover:text-rose-400'
+            }`}>
+              {systemState.isRecordingScreen ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+            </div>
+            <span className={`text-[11px] font-bold ${systemState.isRecordingScreen ? 'text-rose-300' : 'text-slate-500'}`}>
+              {systemState.isRecordingScreen ? 'Grabando' : 'Listo'}
+            </span>
+          </div>
+          <div className="mt-3">
+            <span className="text-xs font-bold block text-white">Grabar Pantalla</span>
+            <span className="text-[11px] text-slate-400">Video y audio</span>
+          </div>
+        </button>
+      </div>
+
       {/* Volume Slider Card */}
       <div className="rounded-3xl border border-slate-800/80 bg-slate-950/60 p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-200">
@@ -263,6 +395,32 @@ export const AndroidPhoneCard: React.FC<AndroidPhoneCardProps> = ({
             <div>
               <span className="font-bold block text-white">WhatsApp</span>
               <span className="text-[10px] text-slate-400">Mensaje directo</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onOpenRemindersModal ? onOpenRemindersModal() : onTriggerAction('Abrir recordatorios')}
+            className="flex items-center gap-3 rounded-2xl border border-amber-800/50 bg-amber-950/25 p-3 text-xs text-amber-200 hover:border-amber-500 hover:bg-amber-900/30 transition active:scale-95 text-left group"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-950 border border-amber-800 text-amber-400 shrink-0 group-hover:scale-105 transition-transform">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold block text-white">Recordatorios</span>
+              <span className="text-[10px] text-amber-300/70">Alarmas inteligentes</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onOpenContactsModal ? onOpenContactsModal() : onTriggerAction('Abrir contactos')}
+            className="flex items-center gap-3 rounded-2xl border border-blue-800/50 bg-blue-950/25 p-3 text-xs text-blue-200 hover:border-blue-500 hover:bg-blue-900/30 transition active:scale-95 text-left group"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-950 border border-blue-800 text-blue-400 shrink-0 group-hover:scale-105 transition-transform">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold block text-white">Contactos & Alias</span>
+              <span className="text-[10px] text-blue-300/70">Agenda y Telegram</span>
             </div>
           </button>
 

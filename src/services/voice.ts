@@ -82,6 +82,7 @@ class VoiceService {
   private isSoundActive: boolean = false;
   private isSpeechActive: boolean = false;
   private lastSpeechActivityTimestamp: number = 0;
+  private isBackgroundListening: boolean = false;
 
   // Rolling diagnostic in-memory logs
   private logs: VoiceLogEntry[] = [];
@@ -207,11 +208,13 @@ class VoiceService {
       { systemLanguage: sysLang, acceptedLanguages: sysLangs }
     );
 
-    // Initial preference: If device is in Spanish dialect (e.g. es-419, es-MX, es-AR), keep it, otherwise default to es-ES
-    if (sysLang.toLowerCase().startsWith('es')) {
+    // Initial preference: Default to Mexican Spanish (es-MX) or Latin America (es-419)
+    if (sysLang.toLowerCase().includes('mx') || sysLang.toLowerCase().includes('419')) {
       this.currentLanguage = sysLang;
+    } else if (sysLang.toLowerCase().startsWith('es')) {
+      this.currentLanguage = 'es-MX';
     } else {
-      this.currentLanguage = 'es-ES';
+      this.currentLanguage = 'es-MX';
     }
 
     this.addLog(
@@ -753,10 +756,10 @@ class VoiceService {
         // auto-flush immediately so the voice command is emitted and executed!
         this.flushPendingTranscript();
 
-        // If in Always-On mode, restart loop
-        if (this.listeningMode === 'always_on_gemini') {
+        // If in Always-On mode or Background Listening mode, restart loop continuously
+        if (this.listeningMode === 'always_on_gemini' || this.isBackgroundListening) {
           setTimeout(() => {
-            if (this.listeningMode === 'always_on_gemini') {
+            if (this.listeningMode === 'always_on_gemini' || this.isBackgroundListening) {
               this.safeStartRecognition();
             } else {
               this.activeEndCallback?.();
@@ -777,9 +780,22 @@ class VoiceService {
     }
   }
 
+  // --- BACKGROUND LISTENING CONTROLS ---
+  public setBackgroundListening(enabled: boolean): void {
+    this.isBackgroundListening = enabled;
+    this.addLog('Engine', 'info', `Escucha activa en segundo plano: ${enabled ? 'ACTIVADA' : 'DESACTIVADA'}`);
+    if (enabled && !this.isRecognizing) {
+      this.safeStartRecognition();
+    }
+  }
+
+  public isBackgroundListeningActive(): boolean {
+    return this.isBackgroundListening;
+  }
+
   // --- LANGUAGE FALLBACK ENGINE ---
   private attemptLanguageFallback() {
-    const candidates = [navigator.language, 'es-419', 'es-MX', 'es-US', 'es'];
+    const candidates = ['es-MX', 'es-419', navigator.language, 'es-US', 'es-ES', 'es'];
     const nextCandidate = candidates.find(
       (c) => c && c.toLowerCase().startsWith('es') && c !== this.currentLanguage
     );
@@ -1162,9 +1178,13 @@ class VoiceService {
         }
       }
 
-      // Spanish dialect priority
-      if (lang.includes('es-es') || lang.includes('es-419') || lang.includes('es-mx') || lang.includes('es-us')) {
-        score += 30;
+      // Highest priority: Mexican Spanish (es-MX) & Latin America (es-419)
+      if (lang.includes('es-mx') || uri.includes('es-mx') || name.includes('mexico') || name.includes('méxico')) {
+        score += 220;
+      } else if (lang.includes('es-419') || uri.includes('es-419') || name.includes('latino') || name.includes('latina')) {
+        score += 180;
+      } else if (lang.includes('es-us') || lang.includes('es-es')) {
+        score += 40;
       }
 
       // Heavily penalize robotic / harsh synthesizers

@@ -28,8 +28,17 @@ export type AndroidActionType =
   | 'MAKE_CALL'
   | 'SEND_SMS'
   | 'SEND_WHATSAPP'
+  | 'SEND_TELEGRAM'
   | 'SET_ALARM'
   | 'SET_TIMER'
+  | 'SET_REMINDER'
+  | 'LIST_REMINDERS'
+  | 'TOGGLE_AIRPLANE_MODE'
+  | 'SET_SLEEP_MODE'
+  | 'SET_SILENT_MODE'
+  | 'SET_NOTIFICATION_SOUND'
+  | 'RECORD_SCREEN'
+  | 'STOP_RECORD_SCREEN'
   | 'OPEN_CAMERA'
   | 'OPEN_APP'
   | 'OPEN_MAPS'
@@ -48,6 +57,8 @@ export type AndroidActionType =
   | 'READ_NOTIFICATIONS'
   | 'AUTO_REFACTOR'
   | 'DATA_MANAGEMENT'
+  | 'MEDIA_CONTROL'
+  | 'OPEN_MUSIC'
   | 'CUSTOM_INTENT';
 
 export interface AndroidAction {
@@ -73,6 +84,14 @@ export interface AndroidSystemState {
   bluetoothEnabled: boolean;
   airplaneMode: boolean;
   floatingBubbleActive: boolean;
+  isMusicActive?: boolean;
+  currentMediaTitle?: string;
+  debugModeEnabled?: boolean;
+  backgroundListeningActive?: boolean;
+  isRecordingScreen?: boolean;
+  sleepMode?: boolean;
+  silentMode?: 'normal' | 'vibrate' | 'silent';
+  notificationSoundEnabled?: boolean;
   activeTimers: ActiveTimer[];
   notes: string[];
 }
@@ -207,11 +226,51 @@ export interface AssistantSettings {
 export interface ContactInfo {
   id: string;
   name: string;
+  alias?: string;
   phone: string;
   email: string;
+  telegramHandle?: string;
   relationship?: string;
   avatarColor?: string;
   notes?: string;
+}
+
+export interface ReminderItem {
+  id: string;
+  title: string;
+  targetTime: number; // timestamp ms
+  timeString: string; // e.g. "9:00 AM", "15:30"
+  dateString?: string;
+  completed: boolean;
+  createdAt: number;
+  soundTone?: string;
+  vibrate?: boolean;
+  notes?: string;
+}
+
+export interface AiTrainingSample {
+  id: string;
+  prompt: string;
+  idealResponse: string;
+  category: 'command' | 'knowledge' | 'reasoning' | 'device_control' | 'personality';
+  created: number;
+}
+
+export interface AiTrainingSession {
+  id: string;
+  name: string;
+  description: string;
+  epochCount: number;
+  learningRate: number;
+  status: 'draft' | 'training' | 'completed' | 'applied';
+  samples: AiTrainingSample[];
+  trainedAt?: number;
+  metrics?: {
+    loss: number;
+    accuracy: number;
+    tokensTrained: number;
+    durationSeconds: number;
+  };
 }
 
 export interface IncomingMessage {

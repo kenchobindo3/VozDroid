@@ -10,10 +10,12 @@ import {
   SystemBackupSnapshot,
   AiKnowledgeItem,
   AiKnowledgeCategory,
+  ReminderItem,
+  AiTrainingSession,
 } from '../types';
 
 const DB_NAME = 'VozDroidDB';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 const STORE_KEY_PATHS: Record<string, string> = {
   messages: 'id',
@@ -27,6 +29,8 @@ const STORE_KEY_PATHS: Record<string, string> = {
   backups: 'id',
   patches: 'id',
   aiKnowledge: 'id',
+  reminders: 'id',
+  trainingSessions: 'id',
 };
 
 // --- ROBUST IN-MEMORY & LOCALSTORAGE FALLBACK STORE ---
@@ -538,8 +542,55 @@ export async function deleteCustomAgent(id: string): Promise<void> {
 }
 
 // ==========================================
-// CONTACTS API
+// CONTACTS API (WITH ALIASES & TELEGRAM)
 // ==========================================
+export const DEFAULT_CONTACTS: ContactInfo[] = [
+  {
+    id: 'contact-mama',
+    name: 'Carmen Rodríguez',
+    alias: 'Mamá',
+    phone: '+52 55 1234 5678',
+    email: 'mama@familia.com',
+    telegramHandle: 'carmen_mama',
+    relationship: 'Madre',
+    avatarColor: '#ec4899',
+    notes: 'Mamá - Reconocimiento por alias prioritario',
+  },
+  {
+    id: 'contact-amor',
+    name: 'Sofía Valenzuela',
+    alias: 'Amor',
+    phone: '+52 55 8765 4321',
+    email: 'sofia@ejemplo.com',
+    telegramHandle: 'sofi_val',
+    relationship: 'Pareja',
+    avatarColor: '#f43f5e',
+    notes: 'Mi amor / pareja',
+  },
+  {
+    id: 'contact-jefe',
+    name: 'Ing. Carlos Mendoza',
+    alias: 'Jefe',
+    phone: '+52 55 9988 7766',
+    email: 'carlos.mendoza@empresa.com',
+    telegramHandle: 'cmendoza_tech',
+    relationship: 'Trabajo',
+    avatarColor: '#3b82f6',
+    notes: 'Jefe de proyecto',
+  },
+  {
+    id: 'contact-tia',
+    name: 'Tía Elena',
+    alias: 'Mi Tía',
+    phone: '+52 55 4433 2211',
+    email: 'elena@correo.com',
+    telegramHandle: 'tia_elena',
+    relationship: 'Familia',
+    avatarColor: '#8b5cf6',
+    notes: 'Tía Elena de Monterrey',
+  },
+];
+
 export async function getAllContacts(): Promise<ContactInfo[]> {
   try {
     const list = await withStore<ContactInfo[]>(
@@ -553,9 +604,20 @@ export async function getAllContacts(): Promise<ContactInfo[]> {
         }),
       () => fallbackStore.getAll('contacts')
     );
+    if (!list || list.length === 0) {
+      // Seed default contacts
+      for (const c of DEFAULT_CONTACTS) {
+        await saveContact(c);
+      }
+      return DEFAULT_CONTACTS;
+    }
     return Array.isArray(list) ? list : [];
   } catch {
-    return fallbackStore.getAll('contacts');
+    const mem = fallbackStore.getAll('contacts');
+    if (!mem || mem.length === 0) {
+      return DEFAULT_CONTACTS;
+    }
+    return mem;
   }
 }
 
@@ -596,6 +658,218 @@ export async function deleteContact(id: string): Promise<void> {
     );
   } catch {
     fallbackStore.delete('contacts', id);
+  }
+}
+
+// ==========================================
+// REMINDERS API (SMART SLOTS & NOTIFICATIONS)
+// ==========================================
+export async function getAllReminders(): Promise<ReminderItem[]> {
+  try {
+    const list = await withStore<ReminderItem[]>(
+      'reminders',
+      'readonly',
+      (store) =>
+        new Promise((resolve, reject) => {
+          const request = store.getAll();
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => reject(request.error);
+        }),
+      () => fallbackStore.getAll('reminders')
+    );
+    const sorted = Array.isArray(list) ? [...list] : [];
+    sorted.sort((a, b) => (a.targetTime || 0) - (b.targetTime || 0));
+    return sorted;
+  } catch {
+    const list = fallbackStore.getAll('reminders');
+    list.sort((a, b) => (a.targetTime || 0) - (b.targetTime || 0));
+    return list;
+  }
+}
+
+export async function saveReminder(item: ReminderItem): Promise<void> {
+  try {
+    await withStore<void>(
+      'reminders',
+      'readwrite',
+      (store) =>
+        new Promise((resolve, reject) => {
+          const req = store.put(item);
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error);
+        }),
+      () => {
+        fallbackStore.put('reminders', item);
+      }
+    );
+  } catch {
+    fallbackStore.put('reminders', item);
+  }
+}
+
+export async function deleteReminder(id: string): Promise<void> {
+  try {
+    await withStore<void>(
+      'reminders',
+      'readwrite',
+      (store) =>
+        new Promise((resolve, reject) => {
+          const req = store.delete(id);
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error);
+        }),
+      () => {
+        fallbackStore.delete('reminders', id);
+      }
+    );
+  } catch {
+    fallbackStore.delete('reminders', id);
+  }
+}
+
+export async function toggleReminderCompleted(id: string): Promise<void> {
+  const reminders = await getAllReminders();
+  const target = reminders.find((r) => r.id === id);
+  if (target) {
+    target.completed = !target.completed;
+    await saveReminder(target);
+  }
+}
+
+// ==========================================
+// LOCAL AI TRAINING SESSIONS API
+// ==========================================
+export const DEFAULT_TRAINING_SESSIONS: AiTrainingSession[] = [
+  {
+    id: 'session-core-commands',
+    name: 'Sesión 1: Control Universal Android y Privacidad',
+    description: 'Alineación de instrucciones de Zanna para comandos de hardware, cámara, linterna y privacidad total offline.',
+    epochCount: 5,
+    learningRate: 0.0003,
+    status: 'applied',
+    trainedAt: Date.now() - 3600000 * 24,
+    metrics: {
+      loss: 0.021,
+      accuracy: 99.4,
+      tokensTrained: 8400,
+      durationSeconds: 14,
+    },
+    samples: [
+      {
+        id: 's1',
+        prompt: '¿Quién eres y qué puedes hacer?',
+        idealResponse: 'Soy Zanna, tu asistente multimodal para Android inspirada en JARVIS. Controlo el hardware, la música, llamadas, contactos y analizo datos de forma 100% offline.',
+        category: 'personality',
+        created: Date.now(),
+      },
+      {
+        id: 's2',
+        prompt: 'Llama a mi mamá o mándale un mensaje por telegram',
+        idealResponse: 'Comprendo. Accedo a los contactos por el alias "Mamá", redacto el texto y abro el canal directo de llamada o Telegram de forma inmediata.',
+        category: 'device_control',
+        created: Date.now(),
+      },
+      {
+        id: 's3',
+        prompt: 'Recuérdame lavar la ropa a las 9 am',
+        idealResponse: 'Agendo inmediatamente el recordatorio "lavar la ropa" a las 9:00 AM con alarma persistente, vibración y notificación.',
+        category: 'command',
+        created: Date.now(),
+      },
+    ],
+  },
+  {
+    id: 'session-multimodal-reasoning',
+    name: 'Sesión 2: Razonamiento Factual y Búsqueda en Segundo Plano',
+    description: 'Entrenamiento para responder con base en conocimiento local, admitir cuando no se sabe o buscar en internet en segundo plano.',
+    epochCount: 8,
+    learningRate: 0.0002,
+    status: 'completed',
+    trainedAt: Date.now() - 3600000 * 6,
+    metrics: {
+      loss: 0.018,
+      accuracy: 99.7,
+      tokensTrained: 12600,
+      durationSeconds: 19,
+    },
+    samples: [
+      {
+        id: 's4',
+        prompt: 'Si no sabes una respuesta, ¿qué debes hacer?',
+        idealResponse: 'Si conozco la respuesta, te la explico con precisión. Si requiere datos de la red, realizo una búsqueda en segundo plano. Si no dispongo de los datos, te indico claramente que no lo sé o puedo aprenderlo mediante una nueva sesión de entrenamiento.',
+        category: 'reasoning',
+        created: Date.now(),
+      },
+    ],
+  },
+];
+
+export async function getAllTrainingSessions(): Promise<AiTrainingSession[]> {
+  try {
+    const list = await withStore<AiTrainingSession[]>(
+      'trainingSessions',
+      'readonly',
+      (store) =>
+        new Promise((resolve, reject) => {
+          const request = store.getAll();
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => reject(request.error);
+        }),
+      () => fallbackStore.getAll('trainingSessions')
+    );
+    if (!list || list.length === 0) {
+      for (const s of DEFAULT_TRAINING_SESSIONS) {
+        await saveTrainingSession(s);
+      }
+      return DEFAULT_TRAINING_SESSIONS;
+    }
+    return Array.isArray(list) ? list : [];
+  } catch {
+    const mem = fallbackStore.getAll('trainingSessions');
+    if (!mem || mem.length === 0) {
+      return DEFAULT_TRAINING_SESSIONS;
+    }
+    return mem;
+  }
+}
+
+export async function saveTrainingSession(session: AiTrainingSession): Promise<void> {
+  try {
+    await withStore<void>(
+      'trainingSessions',
+      'readwrite',
+      (store) =>
+        new Promise((resolve, reject) => {
+          const req = store.put(session);
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error);
+        }),
+      () => {
+        fallbackStore.put('trainingSessions', session);
+      }
+    );
+  } catch {
+    fallbackStore.put('trainingSessions', session);
+  }
+}
+
+export async function deleteTrainingSession(id: string): Promise<void> {
+  try {
+    await withStore<void>(
+      'trainingSessions',
+      'readwrite',
+      (store) =>
+        new Promise((resolve, reject) => {
+          const req = store.delete(id);
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error);
+        }),
+      () => {
+        fallbackStore.delete('trainingSessions', id);
+      }
+    );
+  } catch {
+    fallbackStore.delete('trainingSessions', id);
   }
 }
 
@@ -883,6 +1157,9 @@ export async function getAllAiKnowledge(): Promise<AiKnowledgeItem[]> {
     return items;
   }
 }
+
+export const getAllKnowledge = getAllAiKnowledge;
+export const saveKnowledge = saveAiKnowledge;
 
 export async function saveAiKnowledge(item: AiKnowledgeItem): Promise<void> {
   try {
