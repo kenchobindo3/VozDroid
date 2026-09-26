@@ -2,6 +2,7 @@ package com.zanna.ai;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
+import android.accessibilityservice.AccessibilityService.GestureResultCallback;
 import android.graphics.Path;
 import android.os.Build;
 import android.util.Log;
@@ -68,7 +69,7 @@ public class ZannaAccessibilityService extends AccessibilityService {
                 .addStroke(stroke)
                 .build();
 
-        return dispatchGesture(gesture, new GestureResultCallback() {
+        return dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
             @Override
             public void onCompleted(GestureDescription gestureDescription) {
                 super.onCompleted(gestureDescription);
@@ -101,7 +102,7 @@ public class ZannaAccessibilityService extends AccessibilityService {
                 .addStroke(stroke)
                 .build();
 
-        return dispatchGesture(gesture, new GestureResultCallback() {
+        return dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
             @Override
             public void onCompleted(GestureDescription gestureDescription) {
                 super.onCompleted(gestureDescription);
