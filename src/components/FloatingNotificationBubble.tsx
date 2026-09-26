@@ -12,6 +12,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { AssistantState, SpeechPlaybackState, AIAgent } from '../types';
+import { ZannaAvatar } from './ZannaAvatar';
 
 interface FloatingNotificationBubbleProps {
   isOpen: boolean;
@@ -59,10 +60,7 @@ export const FloatingNotificationBubble: React.FC<FloatingNotificationBubbleProp
       <div className="fixed top-2 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md pointer-events-auto animate-bounce-short">
         <div className="flex items-center justify-between rounded-2xl border border-cyan-500/40 bg-slate-950/95 p-2.5 shadow-2xl backdrop-blur-md">
           <div className="flex items-center gap-2.5">
-            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-950 border border-cyan-800 text-cyan-400">
-              <span className="text-xs">{activeAgent.avatar}</span>
-              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-950 animate-ping" />
-            </div>
+            <ZannaAvatar size="sm" isListening={isListening} isSpeaking={isSpeaking} isProcessing={isProcessing} />
             <div className="overflow-hidden">
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-bold text-white tracking-wide">ZANNA AI</span>
@@ -176,17 +174,7 @@ export const FloatingNotificationBubble: React.FC<FloatingNotificationBubbleProp
             }`}
             title="Burbuja de ZANNA AI en segundo plano (Toca para ver / Doble toque para maximizar)"
           >
-            <div className="flex flex-col items-center justify-center">
-              {isListening ? (
-                <Mic className="w-6 h-6 text-slate-950 animate-bounce" />
-              ) : isSpeaking ? (
-                <Volume2 className="w-6 h-6 text-slate-950 animate-pulse" />
-              ) : isProcessing ? (
-                <Sparkles className="w-6 h-6 text-slate-950 animate-spin" />
-              ) : (
-                <span className="text-lg">{activeAgent.avatar}</span>
-              )}
-            </div>
+            <ZannaAvatar size="md" isListening={isListening} isSpeaking={isSpeaking} isProcessing={isProcessing} />
           </button>
         </div>
       </div>

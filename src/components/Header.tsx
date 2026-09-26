@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { LocalModelConfig, AndroidSystemState, AIAgent } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
+import { ZannaAvatar } from './ZannaAvatar';
 
 interface HeaderProps {
   activeModel: LocalModelConfig;
@@ -96,10 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
         {/* Brand & Offline status */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-emerald-400 shadow-lg shadow-cyan-500/25 ring-1 ring-white/20">
-            <Radio className="h-5 w-5 text-white animate-pulse" />
-            <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-slate-950 shadow-sm" />
-          </div>
+          <ZannaAvatar size="md" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-100 to-cyan-200 bg-clip-text text-transparent truncate">
