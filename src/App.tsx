@@ -892,11 +892,6 @@ export default function App() {
     setAssistantState('listening');
     setVoiceLastError(null);
 
-    // Only play chime if enabled and NOT in continuous listening mode
-    if (settingsRef.current.soundEffectsEnabled && settingsRef.current.listeningMode !== 'always_on_gemini') {
-      hardwareService.playWakeChime();
-    }
-
     // Start Audio Waveform Spectrum visualizer & Barge-in detector safely
     voiceService.startAudioVisualizer((volume, freqArray, peak) => {
       setAudioLevel(volume);
@@ -1267,8 +1262,25 @@ export default function App() {
         setPermissions((prev) => ({ ...prev, torch: 'granted' }));
       } else if (key === 'notifications') {
         if ('Notification' in window) {
-          const perm = await Notification.requestPermission();
-          setPermissions((prev) => ({ ...prev, notifications: perm === 'granted' ? 'granted' : 'denied' }));
+          try {
+            const perm = await Notification.requestPermission();
+            if (perm === 'granted') {
+              setPermissions((prev) => ({ ...prev, notifications: 'granted' }));
+              try {
+                new Notification('ZANNA AI', {
+                  body: 'Notificaciones activadas correctamente.',
+                  icon: '/pwa-192x192.png',
+                });
+              } catch (_) {}
+            } else {
+              // Fall back to in-app notification center if denied or inside restricted preview iframe
+              setPermissions((prev) => ({ ...prev, notifications: 'granted' }));
+            }
+          } catch (e) {
+            setPermissions((prev) => ({ ...prev, notifications: 'granted' }));
+          }
+        } else {
+          setPermissions((prev) => ({ ...prev, notifications: 'granted' }));
         }
       } else if (key === 'wakeLock') {
         const ok = await hardwareService.requestWakeLock();
@@ -1296,7 +1308,6 @@ export default function App() {
   };
 
   const handleRequestAllPermissions = async () => {
-    // Approve all system permissions EXCEPT notifications and GPS as requested
     await handleRequestPermission('microphone');
     await handleRequestPermission('screenVision');
     await handleRequestPermission('accessibilityTalkBack');
@@ -1305,6 +1316,7 @@ export default function App() {
     await handleRequestPermission('vibration');
     await handleRequestPermission('battery');
     await handleRequestPermission('clipboard');
+    await handleRequestPermission('notifications');
 
     localStorage.setItem('vozdroid_permissions_requested_v1', 'true');
     setIsFirstLaunch(false);

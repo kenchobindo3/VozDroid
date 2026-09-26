@@ -12,6 +12,7 @@ class HardwareService {
   private desiredWakeLock: boolean = false;
   private keepAliveNode: AudioBufferSourceNode | null = null;
   private keepAliveGain: GainNode | null = null;
+  private keepAliveAudioEl: HTMLAudioElement | null = null;
   private screenMediaRecorder: MediaRecorder | null = null;
   private screenRecordedChunks: Blob[] = [];
   private isScreenRecording: boolean = false;
@@ -243,24 +244,34 @@ class HardwareService {
   // Continuous background audio keepalive & Media Notification Shade registration
   public startBackgroundAudioKeepAlive(): void {
     try {
+      // 1. HTML5 Audio Element Loop with Silent WAV Data URI
+      if (!this.keepAliveAudioEl && typeof document !== 'undefined') {
+        const silentWavDataUri = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+        const audio = new Audio(silentWavDataUri);
+        audio.loop = true;
+        audio.volume = 0.01;
+        audio.play().catch(() => {});
+        this.keepAliveAudioEl = audio;
+      }
+
+      // 2. Web Audio Oscillator
       const ctx = this.getAudioContext();
-      if (this.keepAliveNode) return;
+      if (!this.keepAliveNode) {
+        const buffer = ctx.createBuffer(1, Math.max(ctx.sampleRate, 8000), ctx.sampleRate);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
 
-      // 1-second silent looping audio buffer
-      const buffer = ctx.createBuffer(1, Math.max(ctx.sampleRate, 8000), ctx.sampleRate);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.00001, ctx.currentTime);
 
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.00001, ctx.currentTime);
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        source.start();
 
-      source.connect(gain);
-      gain.connect(ctx.destination);
-      source.start();
-
-      this.keepAliveNode = source;
-      this.keepAliveGain = gain;
+        this.keepAliveNode = source;
+        this.keepAliveGain = gain;
+      }
 
       // Android MediaSession notification registration
       if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
@@ -293,6 +304,10 @@ class HardwareService {
 
   public stopBackgroundAudioKeepAlive(): void {
     try {
+      if (this.keepAliveAudioEl) {
+        this.keepAliveAudioEl.pause();
+        this.keepAliveAudioEl = null;
+      }
       if (this.keepAliveNode) {
         this.keepAliveNode.stop();
         this.keepAliveNode.disconnect();

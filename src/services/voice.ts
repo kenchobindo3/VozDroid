@@ -1262,6 +1262,13 @@ class VoiceService {
 
     this.stopSpeaking();
 
+    // Ensure SpeechSynthesis is resumed on Chrome / Android
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.resume();
+      }
+    } catch (_) {}
+
     const cleanText = this.cleanTextForSpeech(text);
     if (!cleanText) {
       options.onEnd?.();
@@ -1280,9 +1287,7 @@ class VoiceService {
         targetVoice = voiceConfig.voice;
       }
 
-      // Sentence prosody splitting:
-      // Breaks long paragraphs into natural conversational phrases with punctuation pauses
-      // This produces human cadence instead of endless monotone robotic speech
+      // Split long text into natural sentences
       const sentenceRegex = /[^.!?\n]+[.!?\n]+/g;
       const rawSentences = cleanText.match(sentenceRegex);
       const sentences: string[] = rawSentences
@@ -1303,35 +1308,61 @@ class VoiceService {
         utterance.pitch = (options.pitch || 1.0) * voiceConfig.pitchAdjustment;
         utterance.rate = (options.rate || 1.0) * voiceConfig.rateAdjustment;
 
-        if (index === 0) {
-          utterance.onstart = () => {
+        return utterance;
+      });
+
+      let currentIndex = 0;
+
+      const speakNext = () => {
+        if (currentIndex >= this.speechQueue.length) {
+          this.updatePlaybackState('idle');
+          this.currentUtterance = null;
+          this.speechQueue = [];
+          options.onEnd?.();
+          return;
+        }
+
+        const utt = this.speechQueue[currentIndex];
+        this.currentUtterance = utt;
+
+        if (currentIndex === 0) {
+          utt.onstart = () => {
             this.updatePlaybackState('speaking');
             options.onStart?.();
           };
         }
 
-        if (index === sentences.length - 1) {
-          utterance.onend = () => {
+        utt.onend = () => {
+          currentIndex++;
+          speakNext();
+        };
+
+        utt.onerror = (e) => {
+          console.warn('Utterance speech notice/error:', e);
+          currentIndex++;
+          if (currentIndex < this.speechQueue.length) {
+            speakNext();
+          } else {
             this.updatePlaybackState('idle');
             this.currentUtterance = null;
             this.speechQueue = [];
-            options.onEnd?.();
-          };
-        }
-
-        utterance.onerror = (e) => {
-          this.updatePlaybackState('idle');
-          this.currentUtterance = null;
-          this.speechQueue = [];
-          options.onError?.(e);
+            options.onError?.(e);
+          }
         };
 
-        return utterance;
-      });
+        try {
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+          window.speechSynthesis.speak(utt);
+        } catch (e) {
+          console.warn('Error invoking speak():', e);
+          currentIndex++;
+          speakNext();
+        }
+      };
 
-      // Speak sentences sequentially through window.speechSynthesis
-      this.currentUtterance = this.speechQueue[0] || null;
-      this.speechQueue.forEach((utt) => window.speechSynthesis.speak(utt));
+      speakNext();
       return true;
     } catch (e) {
       console.warn('Speech synthesis exception:', e);
