@@ -379,58 +379,65 @@ class VoiceService {
 
     const bufferLength = 32;
     const dataArray = new Uint8Array(bufferLength);
+    let lastFrameTime = 0;
+    const fpsInterval = 1000 / 30; // 30 FPS optimized for battery and low CPU heating
 
-    const renderLoop = () => {
+    const renderLoop = (timestamp: number) => {
       if (!this.spectrumCallback) return;
 
-      const now = performance.now();
-      const t = now / 220;
-      const recentSpeechDelta = Date.now() - this.lastSpeechActivityTimestamp;
-      const isActivelySpeaking = this.isSpeechActive || recentSpeechDelta < 850;
+      const elapsed = timestamp - lastFrameTime;
+      if (elapsed >= fpsInterval) {
+        lastFrameTime = timestamp - (elapsed % fpsInterval);
 
-      let volume = 0.06;
-      let peakDb = 12;
+        const now = performance.now();
+        const t = now / 220;
+        const recentSpeechDelta = Date.now() - this.lastSpeechActivityTimestamp;
+        const isActivelySpeaking = this.isSpeechActive || recentSpeechDelta < 850;
 
-      if (this.playbackState === 'speaking') {
-        // Speech synthesis playback visualization wave
-        volume = 0.45 + Math.sin(t * 1.5) * 0.22 + Math.cos(t * 0.8) * 0.14;
-        peakDb = Math.round(volume * 100);
-        for (let i = 0; i < bufferLength; i++) {
-          const form = Math.sin(t * 2 + i * 0.35) * 0.5 + 0.5;
-          dataArray[i] = Math.max(10, Math.min(255, Math.floor(form * volume * 240 + 20)));
+        let volume = 0.06;
+        let peakDb = 12;
+
+        if (this.playbackState === 'speaking') {
+          // Speech synthesis playback visualization wave
+          volume = 0.45 + Math.sin(t * 1.5) * 0.22 + Math.cos(t * 0.8) * 0.14;
+          peakDb = Math.round(volume * 100);
+          for (let i = 0; i < bufferLength; i++) {
+            const form = Math.sin(t * 2 + i * 0.35) * 0.5 + 0.5;
+            dataArray[i] = Math.max(10, Math.min(255, Math.floor(form * volume * 240 + 20)));
+          }
+        } else if (isActivelySpeaking) {
+          // Active human speech detected in input
+          const vocalFlutter = Math.sin(t * 3.2) * 0.14 + Math.cos(t * 1.7) * 0.12;
+          volume = Math.max(0.32, Math.min(0.95, 0.56 + vocalFlutter));
+          peakDb = Math.round(volume * 95);
+          for (let i = 0; i < bufferLength; i++) {
+            const formantPeak = 1 - Math.abs(i - 12) / 16;
+            const harmonic = Math.sin(t * 2.8 + i * 0.42) * 0.4 + 0.6;
+            dataArray[i] = Math.max(15, Math.min(255, Math.floor(harmonic * formantPeak * volume * 255 + 25)));
+          }
+        } else if (this.isSoundActive) {
+          // Ambient room sound detected
+          volume = 0.18 + Math.sin(t) * 0.08;
+          peakDb = Math.round(volume * 80);
+          for (let i = 0; i < bufferLength; i++) {
+            dataArray[i] = Math.max(8, Math.min(100, Math.floor(Math.sin(t + i * 0.5) * 30 + 35)));
+          }
+        } else if (this.isRecognizing) {
+          // Listening for wake word or voice command (gentle ripple)
+          volume = 0.08 + Math.sin(t * 0.8) * 0.03;
+          peakDb = Math.round(volume * 70);
+          for (let i = 0; i < bufferLength; i++) {
+            dataArray[i] = Math.max(6, Math.min(60, Math.floor(Math.sin(t * 0.6 + i * 0.3) * 16 + 18)));
+          }
+        } else {
+          // Idle floor
+          for (let i = 0; i < bufferLength; i++) dataArray[i] = 4;
+          volume = 0.04;
+          peakDb = 8;
         }
-      } else if (isActivelySpeaking) {
-        // Active human speech detected in input
-        const vocalFlutter = Math.sin(t * 3.2) * 0.14 + Math.cos(t * 1.7) * 0.12;
-        volume = Math.max(0.32, Math.min(0.95, 0.56 + vocalFlutter));
-        peakDb = Math.round(volume * 95);
-        for (let i = 0; i < bufferLength; i++) {
-          const formantPeak = 1 - Math.abs(i - 12) / 16;
-          const harmonic = Math.sin(t * 2.8 + i * 0.42) * 0.4 + 0.6;
-          dataArray[i] = Math.max(15, Math.min(255, Math.floor(harmonic * formantPeak * volume * 255 + 25)));
-        }
-      } else if (this.isSoundActive) {
-        // Ambient room sound detected
-        volume = 0.18 + Math.sin(t) * 0.08;
-        peakDb = Math.round(volume * 80);
-        for (let i = 0; i < bufferLength; i++) {
-          dataArray[i] = Math.max(8, Math.min(100, Math.floor(Math.sin(t + i * 0.5) * 30 + 35)));
-        }
-      } else if (this.isRecognizing) {
-        // Listening for wake word or voice command (gentle ripple)
-        volume = 0.08 + Math.sin(t * 0.8) * 0.03;
-        peakDb = Math.round(volume * 70);
-        for (let i = 0; i < bufferLength; i++) {
-          dataArray[i] = Math.max(6, Math.min(60, Math.floor(Math.sin(t * 0.6 + i * 0.3) * 16 + 18)));
-        }
-      } else {
-        // Idle floor
-        for (let i = 0; i < bufferLength; i++) dataArray[i] = 4;
-        volume = 0.04;
-        peakDb = 8;
+
+        this.spectrumCallback(volume, dataArray, peakDb);
       }
-
-      this.spectrumCallback(volume, dataArray, peakDb);
       this.animationFrameId = requestAnimationFrame(renderLoop);
     };
 

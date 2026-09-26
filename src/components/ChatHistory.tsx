@@ -16,8 +16,9 @@ import {
   Mic,
   Copy,
   Check,
+  SlidersHorizontal,
 } from 'lucide-react';
-import { VoiceMessage } from '../types';
+import { VoiceMessage, ListeningMode } from '../types';
 
 interface ChatHistoryProps {
   messages: VoiceMessage[];
@@ -28,6 +29,8 @@ interface ChatHistoryProps {
   isListening?: boolean;
   debugMode?: boolean;
   onToggleDebug?: () => void;
+  listeningMode?: ListeningMode;
+  onOpenVoiceSettings?: () => void;
 }
 
 export const ChatHistory: React.FC<ChatHistoryProps> = ({
@@ -39,6 +42,8 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
   isListening = false,
   debugMode = false,
   onToggleDebug,
+  listeningMode = 'push_to_talk',
+  onOpenVoiceSettings,
 }) => {
   const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({});
   const [inputText, setInputText] = useState('');
@@ -261,6 +266,20 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
               }`}
             >
               <Mic className="w-4 h-4" />
+            </button>
+          )}
+
+          {onOpenVoiceSettings && (
+            <button
+              type="button"
+              onClick={onOpenVoiceSettings}
+              title="Cambiar modo de escucha"
+              className="px-2.5 py-2.5 rounded-2xl border border-slate-800 bg-slate-900 text-cyan-400 hover:bg-slate-800 text-xs font-semibold flex items-center gap-1 shrink-0"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {listeningMode === 'always_on_gemini' ? 'Continuo' : listeningMode === 'timed' ? 'Temporal' : 'Pulsar'}
+              </span>
             </button>
           )}
 

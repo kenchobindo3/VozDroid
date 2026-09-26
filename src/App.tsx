@@ -892,8 +892,8 @@ export default function App() {
     setAssistantState('listening');
     setVoiceLastError(null);
 
-    // Only play chime if enabled, debounced inside hardwareService
-    if (settingsRef.current.soundEffectsEnabled) {
+    // Only play chime if enabled and NOT in continuous listening mode
+    if (settingsRef.current.soundEffectsEnabled && settingsRef.current.listeningMode !== 'always_on_gemini') {
       hardwareService.playWakeChime();
     }
 
@@ -1854,6 +1854,8 @@ export default function App() {
             isListening={assistantState === 'listening'}
             debugMode={systemState.debugModeEnabled || false}
             onToggleDebug={() => setSystemState((prev) => ({ ...prev, debugModeEnabled: !prev.debugModeEnabled }))}
+            listeningMode={settings.listeningMode}
+            onOpenVoiceSettings={() => setIsVoiceSettingsModalOpen(true)}
           />
         </section>
 
@@ -1994,6 +1996,36 @@ export default function App() {
 
       {/* TalkBack Accessibility Navigation HUD */}
       <TalkBackHud />
+
+      {/* Full-Screen Reminder Alarm Popup Modal */}
+      {activeAlertReminder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-md rounded-3xl border border-amber-500 bg-slate-950 p-6 shadow-2xl text-center animate-bounce-short">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/20 border-2 border-amber-500 text-amber-400 mb-4 animate-ping">
+              🔔
+            </div>
+            <h3 className="text-xl font-extrabold text-white">¡Alarma de Recordatorio!</h3>
+            <p className="text-sm font-bold text-cyan-300 mt-2">"{activeAlertReminder.title}"</p>
+            <p className="text-xs text-slate-400 mt-1">Hora programada: {activeAlertReminder.timeString}</p>
+            {activeAlertReminder.notes && (
+              <p className="text-xs text-slate-300 mt-3 p-3 rounded-xl bg-slate-900 border border-slate-800">
+                {activeAlertReminder.notes}
+              </p>
+            )}
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => {
+                  setActiveAlertReminder(null);
+                  voiceService.stopSpeaking();
+                }}
+                className="flex-1 py-3 rounded-2xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition active:scale-95 shadow-lg shadow-amber-500/30"
+              >
+                Descartar / Detener Alarma
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
