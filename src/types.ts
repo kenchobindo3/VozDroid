@@ -246,6 +246,7 @@ export interface ReminderItem {
   soundTone?: string;
   vibrate?: boolean;
   notes?: string;
+  alarmTriggered?: boolean;
 }
 
 export interface AiTrainingSample {

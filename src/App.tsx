@@ -1404,6 +1404,63 @@ export default function App() {
 
       {/* Main Container */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 flex flex-col gap-6">
+        {/* Voice Diagnostic Error Banner for Permissions (not-allowed) & Network (network) */}
+        {voiceLastError && (
+          <div className="w-full max-w-xl mx-auto rounded-3xl border border-amber-500/50 bg-amber-950/40 p-4 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-top-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-slate-950 font-bold">
+                ⚠️
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs sm:text-sm font-bold text-amber-200">
+                    Aviso del Sistema de Voz (Web Speech API)
+                  </h4>
+                  <button
+                    onClick={() => setVoiceLastError(null)}
+                    className="text-amber-400 hover:text-white p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-amber-100/90 mt-1">
+                  {voiceLastError}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setVoiceLastError(null);
+                      handleResetVoiceEngine();
+                      startListeningLoop();
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition active:scale-95 shadow-md"
+                  >
+                    Reintentar Micrófono
+                  </button>
+                  <button
+                    onClick={() => {
+                      setVoiceLastError(null);
+                      setIsPermissionsModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+                  >
+                    Ver Permisos
+                  </button>
+                  <button
+                    onClick={() => {
+                      setVoiceLastError(null);
+                      voiceService.simulateVoiceInput(`${settings.wakeWord || 'Zanna'}, activa la linterna`);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition"
+                  >
+                    Simular Comando de Voz
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Central Voice Orb & Audio Wave Command Interface */}
         <section className="w-full flex justify-center">
           <VoiceOrb
