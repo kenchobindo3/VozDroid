@@ -72,13 +72,11 @@ public class ZannaAccessibilityService extends AccessibilityService {
         return dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
             @Override
             public void onCompleted(GestureDescription gestureDescription) {
-                super.onCompleted(gestureDescription);
                 Log.d(TAG, "Simulated Tap completed successfully at: (" + x + ", " + y + ")");
             }
 
             @Override
             public void onCancelled(GestureDescription gestureDescription) {
-                super.onCancelled(gestureDescription);
                 Log.e(TAG, "Simulated Tap was cancelled by the system.");
             }
         }, null);
@@ -105,13 +103,11 @@ public class ZannaAccessibilityService extends AccessibilityService {
         return dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
             @Override
             public void onCompleted(GestureDescription gestureDescription) {
-                super.onCompleted(gestureDescription);
                 Log.d(TAG, "Simulated Swipe completed from (" + startX + ", " + startY + ") to (" + endX + ", " + endY + ")");
             }
 
             @Override
             public void onCancelled(GestureDescription gestureDescription) {
-                super.onCancelled(gestureDescription);
                 Log.e(TAG, "Simulated Swipe cancelled by the system.");
             }
         }, null);
