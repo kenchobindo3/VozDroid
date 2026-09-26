@@ -37,6 +37,8 @@ export interface ZannaNativePluginInterface {
   acquireCpuWakeLock(): Promise<{ success: boolean; held: boolean }>;
   releaseCpuWakeLock(): Promise<{ success: boolean; held: boolean }>;
   requestIgnoreBatteryOptimizations(): Promise<{ success: boolean }>;
+  startForegroundService(options?: { title?: string; body?: string }): Promise<{ success: boolean }>;
+  stopForegroundService(): Promise<{ success: boolean }>;
   addListener(eventName: string, listenerFunc: (data: any) => void): Promise<any>;
   removeAllListeners(): Promise<void>;
 }
@@ -255,6 +257,24 @@ class NativeAndroidBridgeService {
     if (!this.isNative()) return;
     try {
       await ZannaNative.requestIgnoreBatteryOptimizations();
+    } catch (_) {}
+  }
+
+  public async startForegroundService(title = 'ZANNA AI Activa', body = 'Escucha continua y motor local en segundo plano'): Promise<boolean> {
+    if (!this.isNative()) return false;
+    try {
+      const res = await ZannaNative.startForegroundService({ title, body });
+      return !!res.success;
+    } catch (err) {
+      console.warn('Native startForegroundService error:', err);
+      return false;
+    }
+  }
+
+  public async stopForegroundService(): Promise<void> {
+    if (!this.isNative()) return;
+    try {
+      await ZannaNative.stopForegroundService();
     } catch (_) {}
   }
 }

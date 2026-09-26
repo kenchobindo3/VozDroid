@@ -57,6 +57,7 @@ import { TalkBackHud } from './components/TalkBackHud';
 import { ContactsModal } from './components/ContactsModal';
 import { RemindersManagerModal } from './components/RemindersManagerModal';
 import { InteractiveTutorialModal } from './components/InteractiveTutorialModal';
+import { SmartWritingModal } from './components/SmartWritingModal';
 import { screenVisionTalkbackService } from './services/screenVisionTalkback';
 import {
   MessageSquare,
@@ -194,6 +195,7 @@ export default function App() {
   const [isContactsModalOpen, setIsContactsModalOpen] = useState(false);
   const [isRemindersModalOpen, setIsRemindersModalOpen] = useState(false);
   const [isTutorialModalOpen, setIsTutorialModalOpen] = useState(false);
+  const [isSmartWritingModalOpen, setIsSmartWritingModalOpen] = useState(false);
   const [activeAlertReminder, setActiveAlertReminder] = useState<ReminderItem | null>(null);
   const [incomingAlertMsg, setIncomingAlertMsg] = useState<IncomingMessage | null>(null);
 
@@ -1397,18 +1399,11 @@ export default function App() {
         onOpenObservationModal={() => setIsObservationModalOpen(true)}
         onToggleWakeLock={handleToggleWakeLock}
         onToggleFloatingBubble={handleToggleFloatingBubble}
-        isTalkBackActive={isTalkBackActive}
-        onToggleTalkBack={() => {
-          if (isTalkBackActive) {
-            screenVisionTalkbackService.disableTalkBack(true);
-          } else {
-            screenVisionTalkbackService.enableTalkBack(true);
-          }
-        }}
         onReadScreen={() => {
           screenVisionTalkbackService.readScreenAloud();
         }}
         onOpenTutorialModal={() => setIsTutorialModalOpen(true)}
+        onOpenSmartWritingModal={() => setIsSmartWritingModalOpen(true)}
       />
 
       {/* Floating Incoming Communication Alert Banner */}
@@ -1550,6 +1545,22 @@ export default function App() {
             onStopSpeaking={handleStopSpeaking}
             onOpenVoiceSettings={() => setIsVoiceSettingsModalOpen(true)}
             onOpenAgentModal={() => setIsAgentModalOpen(true)}
+          />
+        </section>
+
+        {/* PRIMARY WINDOW: The Live Conversation Text Window (Moved right up below VoiceOrb) */}
+        <section className="w-full max-w-3xl mx-auto flex flex-col space-y-4">
+          <ChatHistory
+            messages={messages}
+            onPlayVoice={handleReplayVoice}
+            onClearChat={handleClearChat}
+            onSendMessage={handleProcessInput}
+            onToggleVoice={handleToggleListening}
+            isListening={assistantState === 'listening'}
+            debugMode={systemState.debugModeEnabled || false}
+            onToggleDebug={() => setSystemState((prev) => ({ ...prev, debugModeEnabled: !prev.debugModeEnabled }))}
+            listeningMode={settings.listeningMode}
+            onOpenVoiceSettings={() => setIsVoiceSettingsModalOpen(true)}
           />
         </section>
 
@@ -1908,23 +1919,9 @@ export default function App() {
           )}
         </div>
 
-        {/* PRIMARY WINDOW: The Live Conversation Text Window (Always Main & Visible) */}
+        {/* PRIMARY WINDOW: Universal Media & Music Control Deck */}
         <section className="w-full max-w-3xl mx-auto flex-1 flex flex-col space-y-4">
-          {/* Universal Media & Music Control Deck */}
           <MediaControlCard onNotify={(msg) => hardwareService.vibrate([70])} />
-
-          <ChatHistory
-            messages={messages}
-            onPlayVoice={handleReplayVoice}
-            onClearChat={handleClearChat}
-            onSendMessage={handleProcessInput}
-            onToggleVoice={handleToggleListening}
-            isListening={assistantState === 'listening'}
-            debugMode={systemState.debugModeEnabled || false}
-            onToggleDebug={() => setSystemState((prev) => ({ ...prev, debugModeEnabled: !prev.debugModeEnabled }))}
-            listeningMode={settings.listeningMode}
-            onOpenVoiceSettings={() => setIsVoiceSettingsModalOpen(true)}
-          />
         </section>
 
       </main>
@@ -2017,6 +2014,13 @@ export default function App() {
         onRequestPermission={handleRequestPermission}
         settings={settings}
         onUpdateSettings={(newSet) => setSettings((prev) => ({ ...prev, ...newSet }))}
+      />
+
+      {/* Modal: Smart Guided Writing Assistant */}
+      <SmartWritingModal
+        isOpen={isSmartWritingModalOpen}
+        onClose={() => setIsSmartWritingModalOpen(false)}
+        settings={settings}
       />
 
       {/* Modal: Android Permissions & Diagnostic Center */}

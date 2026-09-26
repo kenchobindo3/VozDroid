@@ -23,6 +23,7 @@ import {
   Brain,
   Bell,
   Clock,
+  FileText,
 } from 'lucide-react';
 import { LocalModelConfig, AndroidSystemState, AIAgent } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -43,10 +44,9 @@ interface HeaderProps {
   onOpenContactsModal?: () => void;
   onOpenRemindersModal?: () => void;
   onOpenTutorialModal?: () => void;
+  onOpenSmartWritingModal?: () => void;
   onToggleWakeLock: () => void;
   onToggleFloatingBubble: () => void;
-  isTalkBackActive?: boolean;
-  onToggleTalkBack?: () => void;
   onReadScreen?: () => void;
 }
 
@@ -65,10 +65,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenContactsModal,
   onOpenRemindersModal,
   onOpenTutorialModal,
+  onOpenSmartWritingModal,
   onToggleWakeLock,
   onToggleFloatingBubble,
-  isTalkBackActive = false,
-  onToggleTalkBack,
   onReadScreen,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -254,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>
                   )}
 
-                  {/* Visión y Lectura de Pantalla */}
+                  {/* Uso de Pantalla por IA (Control Visual) */}
                   {onReadScreen && (
                     <button
                       onClick={() => handleAction(onReadScreen)}
@@ -265,8 +264,27 @@ export const Header: React.FC<HeaderProps> = ({
                           <Eye className="w-4 h-4" />
                         </div>
                         <div>
-                          <span className="font-bold block text-slate-200 group-hover:text-cyan-300">Ver y Leer Pantalla</span>
-                          <span className="text-[11px] text-slate-400">Inspeccionar DOM y leer en voz alta</span>
+                          <span className="font-bold block text-slate-200 group-hover:text-cyan-300">Uso de Pantalla por IA</span>
+                          <span className="text-[11px] text-slate-400">Control visual inteligente y lectura</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 transition-colors" />
+                    </button>
+                  )}
+
+                  {/* Redacción Guiada Inteligente */}
+                  {onOpenSmartWritingModal && (
+                    <button
+                      onClick={() => handleAction(onOpenSmartWritingModal)}
+                      className="flex w-full items-center justify-between rounded-2xl p-2.5 text-left text-xs font-medium text-slate-200 hover:bg-slate-900 hover:text-purple-300 transition group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-purple-950/80 border border-purple-800/60 text-purple-400 shadow-sm group-hover:scale-105 transition-transform">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-bold block text-slate-200 group-hover:text-purple-300">Redacción Guiada Inteligente</span>
+                          <span className="text-[11px] text-slate-400">Asistente offline para redactar mensajes</span>
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 transition-colors" />
@@ -418,17 +436,13 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>Burbuja</span>
                     </button>
 
-                    {onToggleTalkBack && (
+                    {onOpenTutorialModal && (
                       <button
-                        onClick={() => handleAction(onToggleTalkBack)}
-                        className={`flex items-center justify-center gap-2 p-2.5 rounded-2xl border text-xs font-semibold transition active:scale-95 ${
-                          isTalkBackActive
-                            ? 'border-cyan-500 bg-cyan-950/80 text-cyan-300 shadow-sm'
-                            : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'
-                        }`}
+                        onClick={() => handleAction(onOpenTutorialModal)}
+                        className="flex items-center justify-center gap-2 p-2.5 rounded-2xl border border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200 text-xs font-semibold transition active:scale-95"
                       >
-                        <Hand className="w-4 h-4" />
-                        <span>TalkBack</span>
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <span>Tutorial</span>
                       </button>
                     )}
                   </div>

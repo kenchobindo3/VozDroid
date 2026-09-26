@@ -1695,22 +1695,68 @@ class LocalAiService {
     // YouTube Open & Search Intent
     if (targetText.includes('youtube') || targetText.includes('yutu')) {
       let searchQuery = '';
-      const queryMatch = text.match(/(?:busca|buscar|pon|pone)\s+(?:en\s+youtube\s+)?(?:que\s+diga\s+)?(.+)/i) ||
+      const queryMatch = text.match(/(?:busca|buscar|pon|pone|reproduce)\s+(?:en\s+youtube\s+)?(?:que\s+diga\s+)?(.+)/i) ||
                          text.match(/youtube\s+(?:y\s+busca\s+)?(.+)/i);
       if (queryMatch) {
-        searchQuery = queryMatch[1].replace(/^(?:y\s+busca|y\s+poner|busca)\s+/i, '').trim();
+        searchQuery = queryMatch[1].replace(/^(?:y\s+busca|y\s+poner|busca|reproduce)\s+/i, '').trim();
       }
 
       actions.push({
         id: 'act-' + Math.random().toString(36).substring(2, 9),
         type: 'OPEN_APP',
-        title: searchQuery ? `Buscar en YouTube: "${searchQuery}"` : 'Abrir YouTube',
-        description: searchQuery ? `Búsqueda de "${searchQuery}" en YouTube` : 'Abriendo aplicación de YouTube',
+        title: searchQuery ? `Reproducir en YouTube: "${searchQuery}"` : 'Abrir YouTube',
+        description: searchQuery ? `Búsqueda y reproducción automática de "${searchQuery}" en YouTube` : 'Abriendo YouTube',
         params: { appName: 'youtube', searchQuery },
         status: 'pending',
         timestamp: Date.now(),
       });
-      reasoningSteps.push(`[YouTube] Búsqueda: "${searchQuery || 'Inicio'}"`);
+      reasoningSteps.push(`[YouTube] Búsqueda y reproducción: "${searchQuery || 'Inicio'}"`);
+    }
+
+    // Gallery & Photos/Videos Sharing Intent
+    if (targetText.includes('foto') || targetText.includes('fotos') || targetText.includes('video') || targetText.includes('galeria') || targetText.includes('archivo')) {
+      let count = 1;
+      const countMatch = text.match(/(\d+)\s+(?:fotos|videos|archivos)/i);
+      if (countMatch) {
+        count = parseInt(countMatch[1], 10);
+      } else if (targetText.includes('ultimas 5') || targetText.includes('cinco fotos')) {
+        count = 5;
+      }
+      const mediaType = targetText.includes('video') ? 'video' : 'foto';
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'SEND_WHATSAPP',
+        title: `Enviar ${count} ${mediaType}(s) de la galería`,
+        description: `Seleccionando y compartiendo ${count} ${mediaType}(s) desde el almacenamiento local`,
+        params: { message: `Aquí tienes ${count} ${mediaType}(s) de mi galería.`, count, mediaType },
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push(`[Galería] Compartiendo ${count} ${mediaType}(s)`);
+    }
+
+    // WhatsApp Message & File Sending Intent
+    if (targetText.includes('whatsapp') || targetText.includes('wasap') || targetText.includes('watsap')) {
+      let recipient = 'contacto';
+      let messageContent = 'Hola';
+      const toMatch = text.match(/(?:a|para)\s+([a-zA-ZáéíóúÁÉÍÓÚ\s]+)(?:,|y|con|que|dice|$)/i);
+      if (toMatch) {
+        recipient = toMatch[1].trim();
+      }
+      const contentMatch = text.match(/(?:redacta|escribe|dice|mensaje|envia)\s+(?:un\s+mensaje\s+)?(?:que\s+diga\s+)?["']?([^"']+)["']?/i);
+      if (contentMatch) {
+        messageContent = contentMatch[1].trim();
+      }
+      actions.push({
+        id: 'act-' + Math.random().toString(36).substring(2, 9),
+        type: 'SEND_WHATSAPP',
+        title: `WhatsApp a ${recipient}`,
+        description: `Redactando y enviando mensaje: "${messageContent}"`,
+        params: { number: recipient, message: messageContent },
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      reasoningSteps.push(`[WhatsApp] Mensaje para ${recipient}: "${messageContent}"`);
     }
 
     // Music & Media Controls (Spotify, YouTube Music, Universal Player):
