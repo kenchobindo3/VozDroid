@@ -58,6 +58,7 @@ import { ContactsModal } from './components/ContactsModal';
 import { RemindersManagerModal } from './components/RemindersManagerModal';
 import { InteractiveTutorialModal } from './components/InteractiveTutorialModal';
 import { SmartWritingModal } from './components/SmartWritingModal';
+import { ScreenCopilotModal } from './components/ScreenCopilotModal';
 import { screenVisionTalkbackService } from './services/screenVisionTalkback';
 import {
   MessageSquare,
@@ -196,6 +197,7 @@ export default function App() {
   const [isRemindersModalOpen, setIsRemindersModalOpen] = useState(false);
   const [isTutorialModalOpen, setIsTutorialModalOpen] = useState(false);
   const [isSmartWritingModalOpen, setIsSmartWritingModalOpen] = useState(false);
+  const [isScreenCopilotModalOpen, setIsScreenCopilotModalOpen] = useState(false);
   const [activeAlertReminder, setActiveAlertReminder] = useState<ReminderItem | null>(null);
   const [incomingAlertMsg, setIncomingAlertMsg] = useState<IncomingMessage | null>(null);
 
@@ -1399,11 +1401,9 @@ export default function App() {
         onOpenObservationModal={() => setIsObservationModalOpen(true)}
         onToggleWakeLock={handleToggleWakeLock}
         onToggleFloatingBubble={handleToggleFloatingBubble}
-        onReadScreen={() => {
-          screenVisionTalkbackService.readScreenAloud();
-        }}
         onOpenTutorialModal={() => setIsTutorialModalOpen(true)}
         onOpenSmartWritingModal={() => setIsSmartWritingModalOpen(true)}
+        onOpenScreenCopilotModal={() => setIsScreenCopilotModalOpen(true)}
       />
 
       {/* Floating Incoming Communication Alert Banner */}
@@ -2021,6 +2021,12 @@ export default function App() {
         isOpen={isSmartWritingModalOpen}
         onClose={() => setIsSmartWritingModalOpen(false)}
         settings={settings}
+      />
+
+      {/* Modal: Screen Copilot Assistant */}
+      <ScreenCopilotModal
+        isOpen={isScreenCopilotModalOpen}
+        onClose={() => setIsScreenCopilotModalOpen(false)}
       />
 
       {/* Modal: Android Permissions & Diagnostic Center */}

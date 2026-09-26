@@ -45,6 +45,7 @@ interface HeaderProps {
   onOpenRemindersModal?: () => void;
   onOpenTutorialModal?: () => void;
   onOpenSmartWritingModal?: () => void;
+  onOpenScreenCopilotModal?: () => void;
   onToggleWakeLock: () => void;
   onToggleFloatingBubble: () => void;
   onReadScreen?: () => void;
@@ -66,6 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenRemindersModal,
   onOpenTutorialModal,
   onOpenSmartWritingModal,
+  onOpenScreenCopilotModal,
   onToggleWakeLock,
   onToggleFloatingBubble,
   onReadScreen,
@@ -254,9 +256,9 @@ export const Header: React.FC<HeaderProps> = ({
                   )}
 
                   {/* Uso de Pantalla por IA (Control Visual) */}
-                  {onReadScreen && (
+                  {onOpenScreenCopilotModal && (
                     <button
-                      onClick={() => handleAction(onReadScreen)}
+                      onClick={() => handleAction(onOpenScreenCopilotModal)}
                       className="flex w-full items-center justify-between rounded-2xl p-2.5 text-left text-xs font-medium text-slate-200 hover:bg-slate-900 hover:text-cyan-300 transition group"
                     >
                       <div className="flex items-center gap-3">
