@@ -4,4 +4,5 @@
     <string name="title_activity_main">ZANNA AI</string>
     <string name="package_name">com.zanna.ai</string>
     <string name="custom_url_scheme">com.zanna.ai</string>
+    <string name="accessibility_description">Permite al modelo de IA local ZANNA simular gestos, toques en coordenadas y lectura de pantalla para automatizar tareas por voz.</string>
 </resources>

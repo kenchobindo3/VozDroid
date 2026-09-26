@@ -610,4 +610,71 @@ public class ZannaNativePlugin extends Plugin {
             call.reject("Battery optimization request failed: " + e.getMessage());
         }
     }
+
+    // --- 11. ACCESSIBILITY SIMULATION ACTIONS ---
+    @PluginMethod
+    public void performAccessibilityTap(PluginCall call) {
+        double x = call.getDouble("x", 0.0);
+        double y = call.getDouble("y", 0.0);
+        ZannaAccessibilityService service = ZannaAccessibilityService.getInstance();
+        if (service == null) {
+            call.reject("ZannaAccessibilityService is not running or active.");
+            return;
+        }
+        boolean ok = service.tapAtCoordinates((float) x, (float) y);
+        JSObject ret = new JSObject();
+        ret.put("success", ok);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void performAccessibilitySwipe(PluginCall call) {
+        double startX = call.getDouble("startX", 0.0);
+        double startY = call.getDouble("startY", 0.0);
+        double endX = call.getDouble("endX", 0.0);
+        double endY = call.getDouble("endY", 0.0);
+        int durationMs = call.getInt("durationMs", 300);
+        ZannaAccessibilityService service = ZannaAccessibilityService.getInstance();
+        if (service == null) {
+            call.reject("ZannaAccessibilityService is not running or active.");
+            return;
+        }
+        boolean ok = service.swipe((float) startX, (float) startY, (float) endX, (float) endY, durationMs);
+        JSObject ret = new JSObject();
+        ret.put("success", ok);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void performAccessibilityClickText(PluginCall call) {
+        String text = call.getString("text", "");
+        ZannaAccessibilityService service = ZannaAccessibilityService.getInstance();
+        if (service == null) {
+            call.reject("ZannaAccessibilityService is not running or active.");
+            return;
+        }
+        boolean ok = service.findAndClickElementByText(text);
+        JSObject ret = new JSObject();
+        ret.put("success", ok);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void performAccessibilityGlobalAction(PluginCall call) {
+        String action = call.getString("action", "notifications");
+        ZannaAccessibilityService service = ZannaAccessibilityService.getInstance();
+        if (service == null) {
+            call.reject("ZannaAccessibilityService is not running or active.");
+            return;
+        }
+        boolean ok = false;
+        if ("notifications".equalsIgnoreCase(action)) {
+            ok = service.expandNotificationPanel();
+        } else if ("quick_settings".equalsIgnoreCase(action)) {
+            ok = service.expandQuickSettings();
+        }
+        JSObject ret = new JSObject();
+        ret.put("success", ok);
+        call.resolve(ret);
+    }
 }

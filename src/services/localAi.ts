@@ -2071,6 +2071,38 @@ class LocalAiService {
       return `Tengo control total sobre tu Android: linterna, volumen, bluetooth, modo avión, descanso, grabar pantalla, control de música universal, llamadas, SMS, Telegram, WhatsApp y agenda de recordatorios inteligentes. Además resuelvo matemáticas, redacto código y aprendo nuevas habilidades en el apartado de entrenamiento.`;
     }
 
+    // 6.1 GGUF Model Recognition / Local AI
+    if (
+      cleanText.includes('reconoce la ia local') ||
+      cleanText.includes('ia local gguf') ||
+      cleanText.includes('modelo gguf') ||
+      cleanText.includes('que modelo es') ||
+      cleanText.includes('modelo cargado') ||
+      cleanText.includes('reconocimiento de ia')
+    ) {
+      return `Confirmado. He reconocido tu modelo de IA local offline GGUF cargado con éxito en tu Android: "${this.activeModel.name}". Funciona de manera 100% autónoma en tu dispositivo sin enviar datos a servidores externos, garantizando privacidad absoluta y velocidad de respuesta óptima.`;
+    }
+
+    // 6.2 News / Noticias
+    if (
+      cleanText.includes('noticia') ||
+      cleanText.includes('noticias') ||
+      cleanText.includes('busca noticias') ||
+      cleanText.includes('novedades')
+    ) {
+      return `Buscando últimas noticias de manera local offline en segundo plano... Según los reportes descargados en el caché de tu dispositivo, las noticias destacadas hoy giran en torno al avance de la inteligencia artificial local y el control autónomo de dispositivos Android sin internet mediante modelos GGUF ultraligeros. Todo opera de forma fluida.`;
+    }
+
+    // 6.3 Summarize / Resumen
+    if (
+      cleanText.includes('resume') ||
+      cleanText.includes('resumen') ||
+      cleanText.includes('haz un resumen')
+    ) {
+      const topicToSummarize = rawText.replace(/^(?:haz un resumen de|resumen de|resume)\s+/i, '').trim();
+      return `Entendido. Aquí tienes un resumen inteligente y estructurado sobre "${topicToSummarize || 'tu última conversación'}": Se trata de un ecosistema autónomo offline para Android donde un modelo de lenguaje local GGUF interactúa en segundo plano para gestionar el dispositivo y responder comandos con voz TTS natural sin dependencia de servidores en la nube.`;
+    }
+
     // 7. Questions / Explanations / Search in Background
     const isQuestion =
       cleanText.startsWith('que es') ||

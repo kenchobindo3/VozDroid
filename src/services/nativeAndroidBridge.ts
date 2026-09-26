@@ -39,6 +39,10 @@ export interface ZannaNativePluginInterface {
   requestIgnoreBatteryOptimizations(): Promise<{ success: boolean }>;
   startForegroundService(options?: { title?: string; body?: string }): Promise<{ success: boolean }>;
   stopForegroundService(): Promise<{ success: boolean }>;
+  performAccessibilityTap(options: { x: number; y: number }): Promise<{ success: boolean }>;
+  performAccessibilitySwipe(options: { startX: number; startY: number; endX: number; endY: number; durationMs?: number }): Promise<{ success: boolean }>;
+  performAccessibilityClickText(options: { text: string }): Promise<{ success: boolean }>;
+  performAccessibilityGlobalAction(options: { action: 'notifications' | 'quick_settings' }): Promise<{ success: boolean }>;
   addListener(eventName: string, listenerFunc: (data: any) => void): Promise<any>;
   removeAllListeners(): Promise<void>;
 }
@@ -276,6 +280,50 @@ class NativeAndroidBridgeService {
     try {
       await ZannaNative.stopForegroundService();
     } catch (_) {}
+  }
+
+  public async performAccessibilityTap(x: number, y: number): Promise<boolean> {
+    if (!this.isNative()) return false;
+    try {
+      const res = await ZannaNative.performAccessibilityTap({ x, y });
+      return !!res.success;
+    } catch (err) {
+      console.warn('Native performAccessibilityTap error:', err);
+      return false;
+    }
+  }
+
+  public async performAccessibilitySwipe(startX: number, startY: number, endX: number, endY: number, durationMs = 300): Promise<boolean> {
+    if (!this.isNative()) return false;
+    try {
+      const res = await ZannaNative.performAccessibilitySwipe({ startX, startY, endX, endY, durationMs });
+      return !!res.success;
+    } catch (err) {
+      console.warn('Native performAccessibilitySwipe error:', err);
+      return false;
+    }
+  }
+
+  public async performAccessibilityClickText(text: string): Promise<boolean> {
+    if (!this.isNative()) return false;
+    try {
+      const res = await ZannaNative.performAccessibilityClickText({ text });
+      return !!res.success;
+    } catch (err) {
+      console.warn('Native performAccessibilityClickText error:', err);
+      return false;
+    }
+  }
+
+  public async performAccessibilityGlobalAction(action: 'notifications' | 'quick_settings'): Promise<boolean> {
+    if (!this.isNative()) return false;
+    try {
+      const res = await ZannaNative.performAccessibilityGlobalAction({ action });
+      return !!res.success;
+    } catch (err) {
+      console.warn('Native performAccessibilityGlobalAction error:', err);
+      return false;
+    }
   }
 }
 
