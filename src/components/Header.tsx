@@ -42,6 +42,7 @@ interface HeaderProps {
   onOpenObservationModal?: () => void;
   onOpenContactsModal?: () => void;
   onOpenRemindersModal?: () => void;
+  onOpenTutorialModal?: () => void;
   onToggleWakeLock: () => void;
   onToggleFloatingBubble: () => void;
   isTalkBackActive?: boolean;
@@ -63,6 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenObservationModal,
   onOpenContactsModal,
   onOpenRemindersModal,
+  onOpenTutorialModal,
   onToggleWakeLock,
   onToggleFloatingBubble,
   isTalkBackActive = false,
@@ -230,6 +232,25 @@ export const Header: React.FC<HeaderProps> = ({
                     </div>
                     <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 transition-colors" />
                   </button>
+
+                  {/* Guided Tutorial Modal Option */}
+                  {onOpenTutorialModal && (
+                    <button
+                      onClick={() => handleAction(onOpenTutorialModal)}
+                      className="flex w-full items-center justify-between rounded-2xl p-2.5 text-left text-xs font-medium text-slate-200 hover:bg-slate-900 hover:text-amber-300 transition group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-950/80 border border-amber-800/60 text-amber-400 shadow-sm group-hover:scale-105 transition-transform">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-bold block text-slate-200 group-hover:text-amber-300">Tutorial Guiado de Inicio</span>
+                          <span className="text-[11px] text-slate-400">Paso a paso, palabra de activación y prueba</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 transition-colors" />
+                    </button>
+                  )}
 
                   {/* Visión y Lectura de Pantalla */}
                   {onReadScreen && (

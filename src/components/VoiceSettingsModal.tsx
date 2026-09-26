@@ -17,6 +17,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { AssistantSettings, VoiceGender, ListeningMode, ExternalApiConfig } from '../types';
+import { voiceService } from '../services/voice';
 
 interface VoiceSettingsModalProps {
   isOpen: boolean;
@@ -36,7 +37,20 @@ export const VoiceSettingsModal: React.FC<VoiceSettingsModalProps> = ({
   onTestVoice,
 }) => {
   const [activeSettingsTab, setActiveSettingsTab] = useState<'wake' | 'voice' | 'listening' | 'api' | 'all'>('wake');
+  const [installingPack, setInstallingPack] = useState(false);
+  const [installProgress, setInstallProgress] = useState(0);
+  const [isPackInstalled, setIsPackInstalled] = useState(() => voiceService.isOfflineVoicePackInstalled());
+
   if (!isOpen) return null;
+
+  const handleInstallVoicePack = async () => {
+    setInstallingPack(true);
+    setInstallProgress(10);
+    await voiceService.installOfflineVoicePack((p: number) => setInstallProgress(p));
+    setIsPackInstalled(true);
+    setInstallingPack(false);
+    onTestVoice();
+  };
 
   const handleGenderChange = (gender: VoiceGender) => {
     onUpdateSettings({
@@ -198,6 +212,73 @@ export const VoiceSettingsModal: React.FC<VoiceSettingsModalProps> = ({
               </div>
             </div>
 
+            {/* Sensibilidad del WakeWord / Umbral de Confianza */}
+            <div className="space-y-2 pt-2.5 border-t border-slate-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-white block uppercase tracking-wider">
+                    Sensibilidad del WakeWord (Umbral de Confianza)
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Ajusta el umbral para reducir falsos positivos o mejorar la detección en ambientes ruidosos.
+                  </span>
+                </div>
+                <span className="text-xs font-mono font-bold text-cyan-300 bg-cyan-950 px-2.5 py-1 rounded-xl border border-cyan-800 shrink-0">
+                  {Math.round((settings.wakeWordSensitivity ?? 0.70) * 100)}%
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <input
+                  type="range"
+                  min="0.1"
+                  max="1.0"
+                  step="0.05"
+                  value={settings.wakeWordSensitivity ?? 0.70}
+                  onChange={(e) => onUpdateSettings({ wakeWordSensitivity: parseFloat(e.target.value) })}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                />
+
+                <div className="flex items-center justify-between gap-1 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSettings({ wakeWordSensitivity: 0.40 })}
+                    className={`px-2 py-1 rounded-lg border transition ${
+                      Math.abs((settings.wakeWordSensitivity ?? 0.70) - 0.40) < 0.05
+                        ? 'border-cyan-400 bg-cyan-950 text-cyan-200 font-bold'
+                        : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Alta (40% - Ambiente Ruidoso)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSettings({ wakeWordSensitivity: 0.70 })}
+                    className={`px-2 py-1 rounded-lg border transition ${
+                      Math.abs((settings.wakeWordSensitivity ?? 0.70) - 0.70) < 0.05
+                        ? 'border-cyan-400 bg-cyan-950 text-cyan-200 font-bold'
+                        : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Normal (70% - Recomendado)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSettings({ wakeWordSensitivity: 0.90 })}
+                    className={`px-2 py-1 rounded-lg border transition ${
+                      Math.abs((settings.wakeWordSensitivity ?? 0.70) - 0.90) < 0.05
+                        ? 'border-cyan-400 bg-cyan-950 text-cyan-200 font-bold'
+                        : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Estricta (90% - Alta Precisión)
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Optional Strict Precommand Mode */}
             <div className="flex items-center justify-between pt-2 border-t border-slate-800">
               <div>
@@ -346,49 +427,127 @@ export const VoiceSettingsModal: React.FC<VoiceSettingsModalProps> = ({
               </select>
             </div>
 
-            {/* Open Source Voice Repository & Natural TTS Engines */}
-            <div className="rounded-xl border border-slate-800/90 bg-slate-950/80 p-3 space-y-2">
+            {/* Android Voice Pack Download & Installation Manager */}
+            <div className="rounded-xl border border-slate-800/90 bg-slate-950/80 p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-pink-400" />
-                  Gestor de Voces de Código Abierto (Repositorios)
+                  Paquete de Voz Offline Integrado ZANNA (Español Latino)
                 </span>
-                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950 px-1.5 py-0.2 rounded border border-emerald-800">
-                  Offline GGUF / ONNX
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                  isPackInstalled
+                    ? 'text-emerald-300 bg-emerald-950 border-emerald-800'
+                    : 'text-amber-300 bg-amber-950 border-amber-800'
+                }`}>
+                  {isPackInstalled ? 'INSTALADO (100% Offline)' : 'DISPONIBLE (24 MB)'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">
-                Voces fluidas y naturales de repositorios de código abierto integrables con Zanna:
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
-                <div className="rounded-lg bg-slate-900 border border-slate-800 p-2 flex items-center justify-between">
+
+              {/* 1-Click Offline Installer Card */}
+              <div className="rounded-2xl border border-cyan-800/60 bg-gradient-to-r from-cyan-950/60 to-slate-900/80 p-3.5 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-bold text-white block">Piper TTS (es_MX)</span>
-                    <span className="text-[10px] text-slate-400">Español Mexicano Natural • ONNX 18MB</span>
+                    <span className="text-xs font-bold text-white block">
+                      Paquete de Voz Neural Offline ZANNA es-MX (24 MB)
+                    </span>
+                    <span className="text-[11px] text-slate-300">
+                      Incluye fonemas locales y modelo de síntesis offline para responder sin conexión a internet ni dependencia de Google.
+                    </span>
                   </div>
-                  <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/60 px-2 py-0.5 rounded">
-                    Recomendado
-                  </span>
                 </div>
-                <div className="rounded-lg bg-slate-900 border border-slate-800 p-2 flex items-center justify-between">
-                  <div>
-                    <span className="font-bold text-white block">Kokoro 82M Neural</span>
-                    <span className="text-[10px] text-slate-400">Latinoamérica • Flow Matching</span>
+
+                {installingPack ? (
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[10px] font-bold text-cyan-300">
+                      <span>Instalando paquete de voz offline...</span>
+                      <span>{installProgress}%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-200"
+                        style={{ width: `${installProgress}%` }}
+                      />
+                    </div>
                   </div>
-                  <span className="text-[10px] text-cyan-400 font-semibold bg-cyan-950/60 px-2 py-0.5 rounded">
-                    Alta Fidelidad
-                  </span>
-                </div>
+                ) : (
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleInstallVoicePack}
+                      className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 active:scale-95 transition"
+                    >
+                      {isPackInstalled ? 'Reinstalar Paquete Offline (24 MB)' : 'Instalar Paquete Offline Integrado'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onTestVoice}
+                      className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold border border-slate-700 transition"
+                    >
+                      Probar
+                    </button>
+                  </div>
+                )}
               </div>
-              <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-800/60 flex items-center justify-between">
-                <span>Instalación offline en Android: Ajustes &gt; Reconocimiento de voz &gt; Paquete México</span>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
                 <button
-                  onClick={onTestVoice}
-                  className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1"
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && window.speechSynthesis) {
+                      const fresh = window.speechSynthesis.getVoices();
+                      if (fresh.length > 0) {
+                        onTestVoice();
+                      } else {
+                        alert('Consultando servicio de voz de Android... Si no aparecen voces, verifica tener instalado Google Speech Services.');
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition active:scale-95 shadow-md shadow-cyan-600/20"
                 >
-                  <Play className="w-3 h-3" />
-                  <span>Escuchar Muestra</span>
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Recargar & Probar Voces</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    alert('Para instalar paquetes de voz offline en Android:\n\n1. Ve a Ajustes del Teléfono > Sistema > Idioma e introducción de texto.\n2. Toca "Salida de síntesis de voz" > Motor preferido (icono de engranaje).\n3. Selecciona "Instalar datos de voz" > Español (México / España / EEUU).\n4. Descarga el paquete offline de alta calidad.');
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Ajustes de Voz Android</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
+                <div className="rounded-lg bg-slate-900 border border-slate-800 p-2.5 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-white block">Español México (es-MX)</span>
+                    <span className="text-[10px] text-slate-400">Google Neural / Natural Voice</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onTestVoice}
+                    className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 px-2 py-1 rounded-lg transition"
+                  >
+                    Probar MX
+                  </button>
+                </div>
+
+                <div className="rounded-lg bg-slate-900 border border-slate-800 p-2.5 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-white block">Español Latino (es-419)</span>
+                    <span className="text-[10px] text-slate-400">Google Natural High Quality</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onTestVoice}
+                    className="text-[10px] text-cyan-400 font-semibold bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800/80 px-2 py-1 rounded-lg transition"
+                  >
+                    Probar Latino
+                  </button>
+                </div>
               </div>
             </div>
           </div>

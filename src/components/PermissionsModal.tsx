@@ -14,6 +14,7 @@ import {
   Hand,
   CheckCircle2,
   Sparkles,
+  Users,
 } from 'lucide-react';
 import { PermissionStatusMap } from '../types';
 
@@ -101,6 +102,12 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
       name: 'Portapapeles del Teléfono',
       description: 'Permite copiar textos, respuestas y datos dictados por voz.',
       icon: Clipboard,
+    },
+    {
+      key: 'contacts',
+      name: 'Agenda de Contactos del Teléfono',
+      description: 'Acceso a tu lista de contactos para llamadas, SMS y WhatsApp dirigidos por voz.',
+      icon: Users,
     },
   ];
 

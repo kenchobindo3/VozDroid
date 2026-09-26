@@ -214,6 +214,16 @@ class ScreenVisionTalkbackService {
     return this.talkBackEnabled;
   }
 
+  public enableTalkbackBackgroundMode(): void {
+    this.enableTalkBack(false);
+    hardwareService.requestWakeLock();
+    hardwareService.startBackgroundAudioKeepAlive();
+    voiceService.speak(
+      'Servicio de accesibilidad TalkBack y ejecución en segundo plano activados. El asistente permanecerá leyendo la pantalla y escuchando tus comandos.',
+      { rate: 1.0 }
+    );
+  }
+
   public enableTalkBack(speakAnnouncement: boolean = true): void {
     this.talkBackEnabled = true;
     this.inspectScreen();

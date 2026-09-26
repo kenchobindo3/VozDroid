@@ -56,6 +56,7 @@ import { FloatingNotificationBubble } from './components/FloatingNotificationBub
 import { TalkBackHud } from './components/TalkBackHud';
 import { ContactsModal } from './components/ContactsModal';
 import { RemindersManagerModal } from './components/RemindersManagerModal';
+import { InteractiveTutorialModal } from './components/InteractiveTutorialModal';
 import { screenVisionTalkbackService } from './services/screenVisionTalkback';
 import {
   MessageSquare,
@@ -133,6 +134,7 @@ export default function App() {
     hotwordEnabled: true,
     hotword: 'Zanna',
     wakeWord: 'Zanna',
+    wakeWordSensitivity: 0.70,
     requireWakeWordForCommands: false,
     listeningMode: 'push_to_talk',
     listeningDurationSeconds: 10,
@@ -170,6 +172,7 @@ export default function App() {
     clipboard: 'granted',
     screenVision: 'granted',
     accessibilityTalkBack: 'granted',
+    contacts: 'prompt',
   });
 
   const [isTalkBackActive, setIsTalkBackActive] = useState<boolean>(false);
@@ -189,6 +192,7 @@ export default function App() {
   const [isObservationModalOpen, setIsObservationModalOpen] = useState(false);
   const [isContactsModalOpen, setIsContactsModalOpen] = useState(false);
   const [isRemindersModalOpen, setIsRemindersModalOpen] = useState(false);
+  const [isTutorialModalOpen, setIsTutorialModalOpen] = useState(false);
   const [activeAlertReminder, setActiveAlertReminder] = useState<ReminderItem | null>(null);
   const [incomingAlertMsg, setIncomingAlertMsg] = useState<IncomingMessage | null>(null);
 
@@ -286,9 +290,15 @@ export default function App() {
           vibration: 'granted',
           battery: 'granted',
           clipboard: 'granted',
+          contacts: 'granted',
           notifications: 'prompt', // Opt-in
           geolocation: 'prompt',   // Opt-in
         }));
+
+        // Check tutorial completion status
+        if (localStorage.getItem('zanna_tutorial_completed') !== 'true') {
+          setIsTutorialModalOpen(true);
+        }
 
         // Permissions status check (do not block UI with modal)
         localStorage.setItem('vozdroid_permissions_requested_v1', 'true');
@@ -956,17 +966,20 @@ export default function App() {
     );
   }, [handleProcessInput]);
 
-  // --- ALWAYS-ON GEMINI MODE WATCHDOG ---
+  // --- ALWAYS-ON MODE WATCHDOG ---
   useEffect(() => {
     if (settings.listeningMode === 'always_on_gemini') {
+      const isPowerSaver = systemState.batteryLevel <= 20 || systemState.powerSaverActive || (typeof document !== 'undefined' && document.visibilityState === 'hidden');
+      const watchdogInterval = isPowerSaver ? 6000 : 1500;
+
       const watchdog = setInterval(() => {
         if (assistantState === 'idle' && playbackState === 'idle') {
           startListeningLoop();
         }
-      }, 1500);
+      }, watchdogInterval);
       return () => clearInterval(watchdog);
     }
-  }, [settings.listeningMode, assistantState, playbackState, startListeningLoop]);
+  }, [settings.listeningMode, assistantState, playbackState, startListeningLoop, systemState.batteryLevel, systemState.powerSaverActive]);
 
   // --- AUTOMATIC BACKGROUND ACTIVE LISTENING UPON LEAVING FOREGROUND ---
   useEffect(() => {
@@ -976,8 +989,17 @@ export default function App() {
         hardwareService.startBackgroundAudioKeepAlive();
         await hardwareService.requestWakeLock();
         voiceService.setBackgroundListening(true);
-        if (settingsRef.current.listeningMode === 'always_on_gemini') {
-          startListeningLoop();
+        startListeningLoop();
+
+        // Show persistent background notification shade entry
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification('ZANNA AI - Escucha Activa en Segundo Plano', {
+              body: 'El asistente está activo escuchando tus comandos por voz...',
+              icon: '/pwa-192x192.png',
+              tag: 'zanna-background-service',
+            });
+          } catch (_) {}
         }
       } else {
         // App returned to foreground
@@ -1301,6 +1323,16 @@ export default function App() {
         if (bat) setPermissions((prev) => ({ ...prev, battery: 'granted' }));
       } else if (key === 'clipboard') {
         setPermissions((prev) => ({ ...prev, clipboard: 'granted' }));
+      } else if (key === 'contacts') {
+        setPermissions((prev) => ({ ...prev, contacts: 'granted' }));
+        hardwareService.playSuccessChime();
+        if (settingsRef.current.autoSpeakResponse) {
+          voiceService.speak('Acceso a contactos concedido. Puedes pedirme llamar o enviar mensajes a tus contactos.', {
+            rate: settingsRef.current.speechRate,
+            pitch: settingsRef.current.speechPitch,
+            gender: settingsRef.current.voiceGender,
+          });
+        }
       }
     } catch (e) {
       console.warn('Permission request error:', e);
@@ -1316,6 +1348,7 @@ export default function App() {
     await handleRequestPermission('vibration');
     await handleRequestPermission('battery');
     await handleRequestPermission('clipboard');
+    await handleRequestPermission('contacts');
     await handleRequestPermission('notifications');
 
     localStorage.setItem('vozdroid_permissions_requested_v1', 'true');
@@ -1355,6 +1388,7 @@ export default function App() {
         onReadScreen={() => {
           screenVisionTalkbackService.readScreenAloud();
         }}
+        onOpenTutorialModal={() => setIsTutorialModalOpen(true)}
       />
 
       {/* Floating Incoming Communication Alert Banner */}
@@ -1486,6 +1520,8 @@ export default function App() {
             listeningMode={settings.listeningMode}
             listeningDurationSeconds={settings.listeningDurationSeconds}
             activeAgent={activeAgent}
+            batteryLevel={systemState.batteryLevel}
+            powerSaverActive={systemState.powerSaverActive}
             onToggleListening={handleToggleListening}
             onForceEmitVoiceCommand={handleForceEmitCurrentVoice}
             onSubmitTextCommand={handleProcessInput}
@@ -1950,6 +1986,17 @@ export default function App() {
         onClose={() => setSystemState((prev) => ({ ...prev, floatingBubbleActive: false }))}
         onPauseSpeaking={handlePauseSpeaking}
         onResumeSpeaking={handleResumeSpeaking}
+      />
+
+      {/* Modal: Interactive Onboarding Tutorial */}
+      <InteractiveTutorialModal
+        isOpen={isTutorialModalOpen}
+        onClose={() => setIsTutorialModalOpen(false)}
+        permissions={permissions}
+        onRequestAllPermissions={handleRequestAllPermissions}
+        onRequestPermission={handleRequestPermission}
+        settings={settings}
+        onUpdateSettings={(newSet) => setSettings((prev) => ({ ...prev, ...newSet }))}
       />
 
       {/* Modal: Android Permissions & Diagnostic Center */}

@@ -31,6 +31,8 @@ interface VoiceOrbProps {
   listeningDurationSeconds: number;
   activeAgent: AIAgent;
   wakeWord?: string;
+  batteryLevel?: number;
+  powerSaverActive?: boolean;
   onToggleListening: () => void;
   onForceEmitVoiceCommand?: () => void;
   onSubmitTextCommand: (text: string) => void;
@@ -53,6 +55,8 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
   listeningDurationSeconds,
   activeAgent,
   wakeWord = 'Zanna',
+  batteryLevel = 100,
+  powerSaverActive = false,
   onToggleListening,
   onForceEmitVoiceCommand,
   onSubmitTextCommand,
@@ -150,9 +154,12 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
 
   const orbScale = isListening ? Math.min(1.3, 1 + audioLevel * 1.2) : 1;
 
-  // Real-time animation loop for continuous, fluid sound waveform visualization
+  const isPowerSaver = powerSaverActive || batteryLevel <= 20 || (typeof document !== 'undefined' && document.visibilityState === 'hidden');
+
+  // Real-time animation loop for continuous, fluid sound waveform visualization (disabled in Power Saver Mode)
   const [animTick, setAnimTick] = useState(0);
   useEffect(() => {
+    if (isPowerSaver) return;
     let animId: number;
     const loop = () => {
       setAnimTick((prev) => (prev + 1) % 1000);
@@ -160,7 +167,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
     };
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
-  }, []);
+  }, [isPowerSaver]);
 
   // Real-time voice spectrum bars (24 frequency bars always active for immediate voice recognition feedback)
   const barCount = 24;
@@ -237,7 +244,12 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
       </div>
 
       {/* Main Status Pill */}
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col items-center gap-2">
+        {isPowerSaver && (
+          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-[10px] font-bold bg-amber-950/80 border border-amber-800/80 text-amber-300">
+            🔋 Modo Ahorro de Energía Activo {batteryLevel <= 20 ? `(${batteryLevel}% Batería)` : '(En segundo plano)'}
+          </span>
+        )}
         <span
           className={`inline-flex items-center gap-2.5 rounded-full px-5 py-1.5 text-xs font-semibold tracking-wide border transition-all shadow-md ${
             isListening
@@ -258,7 +270,11 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
           {isListening && (
             <span
               className={`h-2.5 w-2.5 rounded-full ${
-                isVoiceActive ? 'bg-emerald-400 animate-ping' : 'bg-cyan-400 animate-pulse'
+                isPowerSaver
+                  ? 'bg-cyan-400'
+                  : isVoiceActive
+                  ? 'bg-emerald-400 animate-ping'
+                  : 'bg-cyan-400 animate-pulse'
               }`}
             />
           )}

@@ -92,6 +92,7 @@ export interface AndroidSystemState {
   sleepMode?: boolean;
   silentMode?: 'normal' | 'vibrate' | 'silent';
   notificationSoundEnabled?: boolean;
+  powerSaverActive?: boolean;
   activeTimers: ActiveTimer[];
   notes: string[];
 }
@@ -167,6 +168,7 @@ export interface PermissionStatusMap {
   clipboard: 'granted' | 'denied' | 'prompt' | 'unsupported';
   screenVision: 'granted' | 'denied' | 'prompt' | 'unsupported';
   accessibilityTalkBack: 'granted' | 'denied' | 'prompt' | 'unsupported';
+  contacts: 'granted' | 'denied' | 'prompt' | 'unsupported';
 }
 
 export interface ScreenElementInfo {
@@ -204,6 +206,7 @@ export interface AssistantSettings {
   hotwordEnabled: boolean;
   hotword: string;
   wakeWord?: string; // Customizable precommand (e.g. "Zanna", "Comando")
+  wakeWordSensitivity?: number; // Sensitivity threshold (0.1 to 1.0, default 0.70)
   requireWakeWordForCommands?: boolean; // If enabled, system commands require the precommand to avoid confusing AI reasoning
   listeningMode: ListeningMode;
   listeningDurationSeconds: number; // 0 = unlimited / continuous
