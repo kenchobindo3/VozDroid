@@ -35,8 +35,9 @@ jobs:
         distribution: 'temurin'
         cache: 'gradle'
 
-    - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
+    - name: Accept Android SDK Licenses & Setup Tools
+      run: |
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
     - name: Sync Capacitor Native Project
       run: npx cap sync android
