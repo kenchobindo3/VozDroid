@@ -161,8 +161,8 @@ public class ZannaAccessibilityService extends AccessibilityService {
     private boolean traverseDeepAndClick(AccessibilityNodeInfo node, String targetText) {
         if (node == null) return false;
 
-        CharSequence textChar = node.text();
-        CharSequence descChar = node.contentDescription();
+        CharSequence textChar = node.getText();
+        CharSequence descChar = node.getContentDescription();
         String nodeText = textChar != null ? textChar.toString().toLowerCase() : "";
         String nodeDesc = descChar != null ? descChar.toString().toLowerCase() : "";
         String matchText = targetText.toLowerCase();
