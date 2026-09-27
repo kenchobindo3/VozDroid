@@ -2,7 +2,6 @@ package com.zanna.ai;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
-import android.accessibilityservice.AccessibilityService.GestureResultCallback;
 import android.graphics.Path;
 import android.os.Build;
 import android.util.Log;
@@ -69,7 +68,7 @@ public class ZannaAccessibilityService extends AccessibilityService {
                 .addStroke(stroke)
                 .build();
 
-        return dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
+        return dispatchGesture(gesture, new GestureResultCallback() {
             @Override
             public void onCompleted(GestureDescription gestureDescription) {
                 Log.d(TAG, "Simulated Tap completed successfully at: (" + x + ", " + y + ")");
@@ -100,7 +99,7 @@ public class ZannaAccessibilityService extends AccessibilityService {
                 .addStroke(stroke)
                 .build();
 
-        return dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
+        return dispatchGesture(gesture, new GestureResultCallback() {
             @Override
             public void onCompleted(GestureDescription gestureDescription) {
                 Log.d(TAG, "Simulated Swipe completed from (" + startX + ", " + startY + ") to (" + endX + ", " + endY + ")");
